@@ -115,10 +115,10 @@ h1 {
 }
 
 .workflow-description {
-  text-align: center;
+  text-align: left;
   color: hsl(var(--muted-foreground));
-  margin: 0 auto 1.5rem auto;
-  max-width: 70ch;
+//  margin: 0 auto 1.5rem auto;
+  max-width: 150ch;
   line-height: 1.6;
 }
 
