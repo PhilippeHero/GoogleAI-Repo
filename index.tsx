@@ -261,7 +261,8 @@ ${extractedKeywords.join(', ')}`;
           document: {
             run: {
               font: "Poppins",
-              size: "20pt", // 10pt in half-points
+              // Fix: The size property for docx should be a number (representing half-points) instead of a string.
+              size: 20, // 10pt in half-points
             },
           },
         },
@@ -342,51 +343,9 @@ ${extractedKeywords.join(', ')}`;
           </Button>
         </div>
       </header>
-
-      <div className="settings-bar">
-          <Button onClick={generateContent} disabled={isLoading || !cvContent || !jobDescriptionContent}>
-            {t('generateButton')}
-          </Button>
-          <div className="settings-options">
-            <div className="form-group">
-              <label htmlFor="maxWords">{t('maxWordsLabel')}</label>
-              <input 
-                id="maxWords"
-                type="number"
-                value={maxWords}
-                onChange={(e) => setMaxWords(parseInt(e.target.value, 10))}
-                className="input"
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="outputFormat">{t('outputFormatLabel')}</label>
-              <select 
-                id="outputFormat"
-                value={outputFormat}
-                onChange={(e) => setOutputFormat(e.target.value)}
-                className="input"
-              >
-                <option value="MS Word">{t('outputFormatMsWord')}</option>
-                <option value="Google Docs">{t('outputFormatGoogleDocs')}</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label htmlFor="language">{t('languageLabel')}</label>
-              <select 
-                id="language"
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="input"
-              >
-                <option value="English">{t('languageEnglish')}</option>
-                <option value="German">{t('languageGerman')}</option>
-                <option value="French">{t('languageFrench')}</option>
-              </select>
-            </div>
-          </div>
-      </div>
       
       <main className="main-content">
+        <p className="workflow-description">{t('workflowDescription')}</p>
         <Collapsible title={t('inputFilesTitle')} isOpen={isInputOpen} onToggle={() => setIsInputOpen(!isInputOpen)}>
           <Card>
               <div className="card-header-wrapper">
@@ -421,6 +380,51 @@ ${extractedKeywords.join(', ')}`;
             <input type="file" ref={jobUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setJobDescriptionContent)} accept=".txt,.md" />
           </Card>
         </Collapsible>
+        
+        <Card>
+          <div className="generation-controls-wrapper">
+            <Button onClick={generateContent} disabled={isLoading || !cvContent || !jobDescriptionContent}>
+              {t('generateButton')}
+            </Button>
+            <div className="settings-options">
+              <div className="form-group">
+                <label htmlFor="maxWords">{t('maxWordsLabel')}</label>
+                <input 
+                  id="maxWords"
+                  type="number"
+                  value={maxWords}
+                  onChange={(e) => setMaxWords(parseInt(e.target.value, 10))}
+                  className="input"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="outputFormat">{t('outputFormatLabel')}</label>
+                <select 
+                  id="outputFormat"
+                  value={outputFormat}
+                  onChange={(e) => setOutputFormat(e.target.value)}
+                  className="input"
+                >
+                  <option value="MS Word">{t('outputFormatMsWord')}</option>
+                  <option value="Google Docs">{t('outputFormatGoogleDocs')}</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label htmlFor="language">{t('languageLabel')}</label>
+                <select 
+                  id="language"
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="input"
+                >
+                  <option value="English">{t('languageEnglish')}</option>
+                  <option value="German">{t('languageGerman')}</option>
+                  <option value="French">{t('languageFrench')}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </Card>
         
         <Collapsible title={t('outputFilesTitle')} isOpen={isOutputOpen} onToggle={() => setIsOutputOpen(!isOutputOpen)}>
           <Card>

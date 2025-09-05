@@ -9,6 +9,7 @@ export const translations = {
   EN: {
     appTitle: 'AI Cover Letter Generator',
     appSubtitle: 'Transformational Excellence',
+    workflowDescription: 'Follow the steps below to generate a tailored cover letter and short profile. Simply upload or paste your CV and the job description, then click \'Generate\' to see the AI work its magic.',
     generateButton: 'Generate Cover Letter',
     maxWordsLabel: 'Max Words',
     outputFormatLabel: 'Output Format',
@@ -46,6 +47,7 @@ export const translations = {
   DE: {
     appTitle: 'KI-Anschreiben-Generator',
     appSubtitle: 'Transformationale Exzellenz',
+    workflowDescription: 'Folgen Sie den nachstehenden Schritten, um ein maßgeschneidertes Anschreiben und ein Kurzprofil zu erstellen. Laden Sie einfach Ihren Lebenslauf und die Stellenbeschreibung hoch oder fügen Sie den Text ein und klicken Sie dann auf \'Generieren\', um die Magie der KI zu erleben.',
     generateButton: 'Anschreiben generieren',
     maxWordsLabel: 'Max. Wörter',
     outputFormatLabel: 'Ausgabeformat',
@@ -83,6 +85,7 @@ export const translations = {
   FR: {
     appTitle: 'Générateur de lettre de motivation IA',
     appSubtitle: 'Excellence transformationnelle',
+    workflowDescription: 'Suivez les étapes ci-dessous pour générer une lettre de motivation et un profil court sur mesure. Il vous suffit de télécharger ou de coller votre CV et la description du poste, puis de cliquer sur \'Générer\' pour voir la magie de l\'IA opérer.',
     generateButton: 'Générer la lettre de motivation',
     maxWordsLabel: 'Mots max',
     outputFormatLabel: 'Format de sortie',
