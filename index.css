@@ -115,11 +115,11 @@ h1 {
 }
 
 .workflow-description {
-  text-align: left;
+  text-align: center;
   color: hsl(var(--muted-foreground));
-  //margin: 0 auto 1.5rem auto;
-  //max-width: 75ch;
-  line-height: 1.5;
+  margin: 0 auto 1.5rem auto;
+  max-width: 70ch;
+  line-height: 1.6;
 }
 
 .collapsible-header {
