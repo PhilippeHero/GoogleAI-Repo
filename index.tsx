@@ -94,11 +94,12 @@ const ConfirmationModal: FC<{
   title: string;
   children: React.ReactNode;
   t: (key: keyof typeof translations['EN']) => string;
-}> = ({ isOpen, onClose, onConfirm, title, children, t }) => {
+  className?: string;
+}> = ({ isOpen, onClose, onConfirm, title, children, t, className }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+    <div className={`modal-overlay ${className || ''}`} role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
       <div className="modal-content confirmation-modal">
         <h2 id="confirm-dialog-title">{title}</h2>
         <div className="confirmation-modal-body">{children}</div>
@@ -223,6 +224,10 @@ const SortIcon: FC<{ className?: string }> = ({ className }) => (
   <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/></svg>
 );
 
+const CheckCircleIcon: FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+);
+
 
 // --- App-specific Components ---
 type Job = {
@@ -231,6 +236,7 @@ type Job = {
   company: string;
   location: string;
   posted: string; // Stored as YYYY-MM-DD
+  applicationDate: string; // Stored as YYYY-MM-DD
   description: string;
   url: string;
 };
@@ -245,7 +251,7 @@ type DocumentItem = {
     lastUpdated?: string; // ISO String
 };
 
-type ExtractedJobData = Omit<Job, 'id'>;
+type ExtractedJobData = Omit<Job, 'id' | 'applicationDate'>;
 
 const getInitialDate = (daysAgo: number) => {
     const date = new Date();
@@ -258,12 +264,31 @@ const getTodayDate = () => {
 };
 
 const initialJobs: Job[] = [
-    { id: 1, title: 'Senior Frontend Engineer', company: 'Stark Industries', location: 'New York, NY', posted: getInitialDate(2), url: 'https://example.com/job/1', description: 'Seeking a talented frontend engineer to build next-generation UIs for our advanced projects. Must be proficient in React and Stark-Tech.' },
-    { id: 2, title: 'Product Manager', company: 'Wayne Enterprises', location: 'Gotham City', posted: getInitialDate(3), url: 'https://example.com/job/2', description: 'Lead the product development lifecycle for our new line of public safety solutions. Experience in hardware and software is a plus.' },
-    { id: 3, title: 'UX/UI Designer', company: 'Cyberdyne Systems', location: 'Sunnyvale, CA', posted: getInitialDate(7), url: 'https://example.com/job/3', description: 'Design intuitive and engaging user experiences for our global defense network. Strong portfolio in complex systems required.' },
-    { id: 4, title: 'Backend Developer (Go)', company: 'Oscorp', location: 'New York, NY', posted: getInitialDate(8), url: 'https://example.com/job/4', description: 'Develop and maintain high-performance backend services for genetic research applications. Experience with large-scale databases is essential.' },
-    { id: 5, title: 'Data Scientist', company: 'Tyrell Corporation', location: 'Los Angeles, CA', posted: getInitialDate(14), url: 'https://example.com/job/5', description: 'Analyze and interpret complex data sets to create more-human-than-human replicants. Advanced degree in a quantitative field preferred.' },
+    { id: 1, title: 'Senior Frontend Engineer', company: 'Stark Industries', location: 'New York, NY', posted: getInitialDate(2), applicationDate: getInitialDate(1), url: 'https://example.com/job/1', description: 'Seeking a talented frontend engineer to build next-generation UIs for our advanced projects. Must be proficient in React and Stark-Tech.' },
+    { id: 2, title: 'Product Manager', company: 'Wayne Enterprises', location: 'Gotham City', posted: getInitialDate(3), applicationDate: getInitialDate(2), url: 'https://example.com/job/2', description: 'Lead the product development lifecycle for our new line of public safety solutions. Experience in hardware and software is a plus.' },
+    { id: 3, title: 'UX/UI Designer', company: 'Cyberdyne Systems', location: 'Sunnyvale, CA', posted: getInitialDate(7), applicationDate: '', url: 'https://example.com/job/3', description: 'Design intuitive and engaging user experiences for our global defense network. Strong portfolio in complex systems required.' },
+    { id: 4, title: 'Backend Developer (Go)', company: 'Oscorp', location: 'New York, NY', posted: getInitialDate(8), applicationDate: getInitialDate(5), url: 'https://example.com/job/4', description: 'Develop and maintain high-performance backend services for genetic research applications. Experience with large-scale databases is essential.' },
+    { id: 5, title: 'Data Scientist', company: 'Tyrell Corporation', location: 'Los Angeles, CA', posted: getInitialDate(14), applicationDate: '', url: 'https://example.com/job/5', description: 'Analyze and interpret complex data sets to create more-human-than-human replicants. Advanced degree in a quantitative field preferred.' },
 ];
+
+const isDateBeforeTomorrow = (dateString: string): boolean => {
+  if (!dateString || !/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+    return false;
+  }
+  try {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // Set to end of today to include today in the check
+
+    const inputDate = new Date(dateString);
+    // Correct for timezone offset to treat date as local
+    const userTimezoneOffset = inputDate.getTimezoneOffset() * 60000;
+    const correctInputDate = new Date(inputDate.getTime() + userTimezoneOffset);
+    
+    return correctInputDate <= today;
+  } catch (e) {
+    return false;
+  }
+};
 
 
 const JobModal: FC<{
@@ -271,11 +296,9 @@ const JobModal: FC<{
   isOpen: boolean;
   onClose: () => void;
   onSave: (job: Partial<Job>) => void;
-  onDelete: (jobId: number) => void;
   t: (key: keyof typeof translations['EN']) => string;
-}> = ({ job, isOpen, onClose, onSave, onDelete, t }) => {
+}> = ({ job, isOpen, onClose, onSave, t }) => {
   const [formData, setFormData] = useState<Partial<Job> | null>(job);
-  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
 
   useEffect(() => {
     setFormData(job);
@@ -296,16 +319,88 @@ const JobModal: FC<{
     }
   };
 
-  const handleDelete = () => {
-    if (isEditing) {
-        setIsConfirmDeleteOpen(true);
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="job-dialog-title">
+      <div className="modal-content edit-job-modal">
+        <h2 id="job-dialog-title">{isEditing ? t('editJobTitle') : t('addJobTitle')}</h2>
+        <p>{isEditing ? t('editJobDetailsSubtitle') : t('confirmJobDetailsSubtitle')}</p>
+        <div className="form-group-stack">
+          <label htmlFor="title">{t('jobColumnTitle')}</label>
+          <input id="title" name="title" value={formData.title || ''} onChange={handleChange} className="input" />
+
+          <label htmlFor="company">{t('jobColumnCompany')}</label>
+          <input id="company" name="company" value={formData.company || ''} onChange={handleChange} className="input" />
+          
+          <label htmlFor="location">{t('jobColumnLocation')}</label>
+          <input id="location" name="location" value={formData.location || ''} onChange={handleChange} className="input" />
+
+          <label htmlFor="url">{t('jobColumnUrl')}</label>
+          <input id="url" name="url" type="url" value={formData.url || ''} onChange={handleChange} className="input" />
+          
+          <label htmlFor="posted">{t('jobColumnPosted')}</label>
+          <input id="posted" name="posted" type="date" value={formData.posted || ''} onChange={handleChange} className="input" />
+          
+          <label htmlFor="applicationDate">{t('jobColumnApplicationDate')}</label>
+          <div className="field-with-icon">
+            <input id="applicationDate" name="applicationDate" type="date" value={formData.applicationDate || ''} onChange={handleChange} className="input" />
+            {isDateBeforeTomorrow(formData.applicationDate || '') && (
+              <span title={t('applicationSubmittedTooltip')}>
+                <CheckCircleIcon className="checkmark-icon" />
+              </span>
+            )}
+          </div>
+
+          <label htmlFor="description">{t('jobColumnDescription')}</label>
+          <Textarea id="description" name="description" value={formData.description || ''} onChange={handleChange} placeholder="" style={{minHeight: '100px'}} />
+        </div>
+        <div className="modal-actions">
+          <Button onClick={onClose} variant="secondary">{t('cancelButton')}</Button>
+          <Button onClick={handleSave}>{isEditing ? t('saveButton') : t('addButton')}</Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const JobEditSidePane: FC<{
+  job: Partial<Job> | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (job: Partial<Job>) => void;
+  onDelete: (jobId: number) => void;
+  t: (key: keyof typeof translations['EN']) => string;
+}> = ({ job, isOpen, onClose, onSave, onDelete, t }) => {
+  const [formData, setFormData] = useState<Partial<Job> | null>(null);
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+
+  useEffect(() => {
+    setFormData(job);
+  }, [job]);
+
+  if (!formData) return null;
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => prev ? { ...prev, [name]: value } : null);
+  };
+
+  const handleSave = () => {
+    if (formData) {
+      onSave(formData);
     }
   };
 
+  const handleDelete = () => {
+    if (formData?.id) {
+        setIsConfirmDeleteOpen(true);
+    }
+  };
+  
   const handleConfirmDelete = () => {
-      if(isEditing && formData.id) {
+      if(formData?.id) {
           onDelete(formData.id);
       }
+      setIsConfirmDeleteOpen(false);
   }
 
   return (
@@ -316,47 +411,70 @@ const JobModal: FC<{
         onConfirm={handleConfirmDelete}
         title={t('deleteJobConfirmationTitle')}
         t={t}
+        className="modal-overlay-top"
       >
         <p>{t('deleteJobConfirmation')}</p>
       </ConfirmationModal>
-
-      <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="job-dialog-title">
-        <div className="modal-content edit-job-modal">
-          <h2 id="job-dialog-title">{isEditing ? t('editJobTitle') : t('addJobTitle')}</h2>
-          <p>{isEditing ? t('editJobDetailsSubtitle') : t('confirmJobDetailsSubtitle')}</p>
+      
+      <div className={`side-pane-overlay ${isOpen ? 'open' : ''}`} onClick={onClose} />
+      <div className={`side-pane ${isOpen ? 'open' : ''}`} role="dialog" aria-modal="true" aria-labelledby="side-pane-title">
+        <div className="side-pane-header">
+            <h2 id="side-pane-title">{t('editJobTitle')}</h2>
+              <Button onClick={onClose} variant="secondary" className="btn-icon" aria-label={t('closeButton')}>
+                <span style={{fontSize: '1.5rem', lineHeight: '1'}}>&times;</span>
+            </Button>
+        </div>
+        <div className="side-pane-body">
+          <p>{t('editJobDetailsSubtitle')}</p>
           <div className="form-group-stack">
-            <label htmlFor="title">{t('jobColumnTitle')}</label>
-            <input id="title" name="title" value={formData.title || ''} onChange={handleChange} className="input" />
+            <label htmlFor="edit-title">{t('jobColumnTitle')}</label>
+            <input id="edit-title" name="title" value={formData.title || ''} onChange={handleChange} className="input" />
 
-            <label htmlFor="company">{t('jobColumnCompany')}</label>
-            <input id="company" name="company" value={formData.company || ''} onChange={handleChange} className="input" />
+            <label htmlFor="edit-company">{t('jobColumnCompany')}</label>
+            <input id="edit-company" name="company" value={formData.company || ''} onChange={handleChange} className="input" />
             
-            <label htmlFor="location">{t('jobColumnLocation')}</label>
-            <input id="location" name="location" value={formData.location || ''} onChange={handleChange} className="input" />
+            <label htmlFor="edit-location">{t('jobColumnLocation')}</label>
+            <input id="edit-location" name="location" value={formData.location || ''} onChange={handleChange} className="input" />
 
-            <label htmlFor="url">{t('jobColumnUrl')}</label>
-            <input id="url" name="url" type="url" value={formData.url || ''} onChange={handleChange} className="input" />
+            <label htmlFor="edit-url">{t('jobColumnUrl')}</label>
+            <input id="edit-url" name="url" type="url" value={formData.url || ''} onChange={handleChange} className="input" />
             
-            <label htmlFor="posted">{t('jobColumnPosted')}</label>
-            <input id="posted" name="posted" type="date" value={formData.posted || ''} onChange={handleChange} className="input" />
-            
-            <label htmlFor="description">{t('jobColumnDescription')}</label>
-            <Textarea id="description" name="description" value={formData.description || ''} onChange={handleChange} placeholder="" style={{minHeight: '100px'}} />
+            <div className="form-group-row">
+              <div className="form-group-column">
+                <label htmlFor="edit-posted">{t('jobColumnPosted')}</label>
+                <input id="edit-posted" name="posted" type="date" value={formData.posted || ''} onChange={handleChange} className="input" />
+              </div>
+              <div className="form-group-column">
+                <label htmlFor="edit-applicationDate">{t('jobColumnApplicationDate')}</label>
+                <div className="field-with-icon">
+                  <input id="edit-applicationDate" name="applicationDate" type="date" value={formData.applicationDate || ''} onChange={handleChange} className="input" />
+                  {isDateBeforeTomorrow(formData.applicationDate || '') && (
+                    <span title={t('applicationSubmittedTooltip')}>
+                      <CheckCircleIcon className="checkmark-icon" />
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="form-group-expand">
+              <label htmlFor="edit-description">{t('jobColumnDescription')}</label>
+              <Textarea id="edit-description" name="description" value={formData.description || ''} onChange={handleChange} placeholder="" />
+            </div>
           </div>
-          <div className="modal-actions">
-            {isEditing && (
-              <Button onClick={handleDelete} variant="secondary" className="btn-destructive" style={{ marginRight: 'auto' }}>
-                {t('deleteButton')}
-              </Button>
-            )}
-            <Button onClick={onClose} variant="secondary">{t('cancelButton')}</Button>
-            <Button onClick={handleSave}>{isEditing ? t('saveButton') : t('addButton')}</Button>
-          </div>
+        </div>
+        <div className="side-pane-footer">
+            <Button onClick={handleDelete} variant="secondary" className="btn-destructive" style={{ marginRight: 'auto' }}>
+            {t('deleteButton')}
+          </Button>
+          <Button onClick={onClose} variant="secondary">{t('cancelButton')}</Button>
+          <Button onClick={handleSave}>{t('saveButton')}</Button>
         </div>
       </div>
     </>
   );
 };
+
 
 const formatDate = (isoDate: string): string => {
   if (!isoDate || !/^\d{4}-\d{2}-\d{2}/.test(isoDate)) { // Adjusted regex to support ISO strings
@@ -385,6 +503,7 @@ const JobsListPage: FC<{ t: (key: keyof typeof translations['EN']) => string }> 
     const [isExtracting, setIsExtracting] = useState(false);
     const [extractionError, setExtractionError] = useState('');
     const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+    const [isSidePaneOpen, setIsSidePaneOpen] = useState(false);
     const [selectedJob, setSelectedJob] = useState<Partial<Job> | null>(null);
 
     const [sortConfig, setSortConfig] = useState<SortConfig>(null);
@@ -516,13 +635,14 @@ ${jobPageContent}`;
         }
     };
     
-    const handleOpenEditModal = (job: Job) => {
+    const handleOpenEditPane = (job: Job) => {
         setSelectedJob(job);
-        setIsJobModalOpen(true);
+        setIsSidePaneOpen(true);
     };
 
-    const handleCloseModal = () => {
+    const handleCloseAll = () => {
         setIsJobModalOpen(false);
+        setIsSidePaneOpen(false);
         setSelectedJob(null);
     };
     
@@ -536,21 +656,22 @@ ${jobPageContent}`;
                 company: jobData.company || 'N/A',
                 location: jobData.location || 'N/A',
                 posted: jobData.posted || '',
+                applicationDate: jobData.applicationDate || '',
                 description: jobData.description || '',
                 url: jobData.url || '',
             };
             setJobs([newJob, ...jobs]);
         }
-        handleCloseModal();
+        handleCloseAll();
     };
 
     const handleDeleteJob = (jobId: number) => {
         setJobs(jobs.filter(j => j.id !== jobId));
-        handleCloseModal();
+        handleCloseAll();
     };
 
     const handleExport = () => {
-        const headers = [t('jobColumnTitle'), t('jobColumnCompany'), t('jobColumnLocation'), t('jobColumnDescription'), t('jobColumnUrl'), t('jobColumnPosted')];
+        const headers = [t('jobColumnTitle'), t('jobColumnCompany'), t('jobColumnLocation'), t('jobColumnDescription'), t('jobColumnUrl'), t('jobColumnPosted'), t('jobColumnApplicationDate')];
         const escapeCsv = (str: string) => `"${String(str || '').replace(/"/g, '""')}"`;
 
         const csvContent = [
@@ -562,6 +683,7 @@ ${jobPageContent}`;
                 escapeCsv(job.description),
                 escapeCsv(job.url),
                 escapeCsv(formatDate(job.posted)),
+                escapeCsv(formatDate(job.applicationDate)),
             ].join(','))
         ].join('\n');
 
@@ -578,8 +700,15 @@ ${jobPageContent}`;
         <>
             <JobModal 
                 isOpen={isJobModalOpen}
-                onClose={handleCloseModal}
+                onClose={handleCloseAll}
                 job={selectedJob}
+                onSave={handleSaveJob}
+                t={t}
+            />
+            <JobEditSidePane
+                isOpen={isSidePaneOpen}
+                job={selectedJob}
+                onClose={handleCloseAll}
                 onSave={handleSaveJob}
                 onDelete={handleDeleteJob}
                 t={t}
@@ -652,27 +781,30 @@ ${jobPageContent}`;
                                 <th className={getSortClasses('posted')} onClick={() => requestSort('posted')}>
                                   <div className="header-content"><span>{t('jobColumnPosted')}</span><SortIcon className="sort-icon" /></div>
                                 </th>
-                                <th>{t('jobColumnActions')}</th>
+                                <th className={getSortClasses('applicationDate')} onClick={() => requestSort('applicationDate')}>
+                                  <div className="header-content"><span>{t('jobColumnApplicationDate')}</span><SortIcon className="sort-icon" /></div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
                             {sortedAndFilteredJobs.map(job => (
-                                <tr key={job.id}>
+                                <tr key={job.id} onClick={() => handleOpenEditPane(job)}>
                                     <td>{job.title}</td>
                                     <td>{job.company}</td>
                                     <td>{job.location}</td>
                                     <td><div className="truncate-text">{job.description}</div></td>
                                     <td>
-                                      <a href={job.url} target="_blank" rel="noopener noreferrer" className="truncate-text">
+                                      <a href={job.url} target="_blank" rel="noopener noreferrer" className="truncate-text" onClick={(e) => e.stopPropagation()}>
                                         {job.url}
                                       </a>
                                     </td>
                                     <td>{formatDate(job.posted)}</td>
-                                    <td className="actions-cell">
-                                      <div className="actions-content">
-                                        <Button onClick={() => handleOpenEditModal(job)} variant="secondary" className="btn-sm">
-                                          {t('editButton')}
-                                        </Button>
+                                    <td>
+                                      <div className="field-with-icon justify-start">
+                                        <span>{formatDate(job.applicationDate)}</span>
+                                        {isDateBeforeTomorrow(job.applicationDate) && (
+                                          <span title={t('applicationSubmittedTooltip')}><CheckCircleIcon className="checkmark-icon"/></span>
+                                        )}
                                       </div>
                                     </td>
                                 </tr>
@@ -1042,7 +1174,7 @@ function App() {
   // Navigation State
   const [currentPage, setCurrentPage] = useState<Page>('landing');
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= DESKTOP_BREAKPOINT);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= DESKTOP_BREAKPOINT);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Generator State
   const [theme, setTheme] = useState('light');
@@ -1078,22 +1210,24 @@ function App() {
   const t = (key: keyof typeof translations['EN']) => {
     return translations[uiLanguage][key] || translations['EN'][key];
   };
+  
+  useEffect(() => {
+    // Start with sidebar collapsed on desktop too
+    setIsSidebarOpen(false);
+    
+    const handleResize = () => {
+        const isDesktopNow = window.innerWidth >= DESKTOP_BREAKPOINT;
+        setIsDesktop(isDesktopNow);
+        // Don't auto-open sidebar on resize, respect user's choice
+    };
+    handleResize(); // Initial check
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
-
-  useEffect(() => {
-      const handleResize = () => {
-          const isDesktopNow = window.innerWidth >= DESKTOP_BREAKPOINT;
-          if (isDesktopNow !== isDesktop) {
-              setIsDesktop(isDesktopNow);
-              setIsSidebarOpen(isDesktopNow); // Auto open/close on breakpoint change
-          }
-      };
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
-  }, [isDesktop]);
 
   useEffect(() => {
     localStorage.setItem('cvContent', cvContent);

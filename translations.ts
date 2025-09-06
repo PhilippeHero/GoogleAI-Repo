@@ -31,6 +31,7 @@ export const translations = {
     jobColumnCompany: 'Company',
     jobColumnLocation: 'Location',
     jobColumnPosted: 'Date Posted',
+    jobColumnApplicationDate: 'Application Date',
     jobColumnDescription: 'Description',
     jobColumnUrl: 'URL',
     jobColumnActions: 'Actions',
@@ -117,6 +118,7 @@ export const translations = {
     filterDateStart: 'From',
     filterDateEnd: 'To',
     clearFilterButton: 'Clear Filter',
+    applicationSubmittedTooltip: 'Application submitted (date is today or in the past)',
   },
   DE: {
     appTitle: 'KI-Anschreiben-Generator',
@@ -143,6 +145,7 @@ export const translations = {
     jobColumnCompany: 'Firma',
     jobColumnLocation: 'Ort',
     jobColumnPosted: 'Veröffentlicht am',
+    jobColumnApplicationDate: 'Bewerbungsdatum',
     jobColumnDescription: 'Beschreibung',
     jobColumnUrl: 'URL',
     jobColumnActions: 'Aktionen',
@@ -229,6 +232,7 @@ export const translations = {
     filterDateStart: 'Von',
     filterDateEnd: 'Bis',
     clearFilterButton: 'Filter löschen',
+    applicationSubmittedTooltip: 'Bewerbung eingereicht (Datum ist heute oder in der Vergangenheit)',
   },
   FR: {
     appTitle: 'Générateur de lettre de motivation IA',
@@ -255,6 +259,7 @@ export const translations = {
     jobColumnCompany: 'Entreprise',
     jobColumnLocation: 'Lieu',
     jobColumnPosted: 'Date de publication',
+    jobColumnApplicationDate: 'Date de candidature',
     jobColumnDescription: 'Description',
     jobColumnUrl: 'URL',
     jobColumnActions: 'Actions',
@@ -341,5 +346,6 @@ export const translations = {
     filterDateStart: 'De',
     filterDateEnd: 'À',
     clearFilterButton: 'Effacer le filtre',
+    applicationSubmittedTooltip: 'Candidature soumise (la date est aujourd\'hui ou passée)',
   },
 };
