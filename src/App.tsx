@@ -8,6 +8,7 @@ import { Packer, Document, Paragraph, TextRun } from 'docx';
 import saveAs from 'file-saver';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
+import * as xlsx from 'xlsx';
 
 import { translations, LanguageCode } from '../translations';
 import { Page, DocumentItem } from './types';
@@ -121,6 +122,23 @@ export const App: FC = () => {
             const arrayBuffer = await file.arrayBuffer();
             const result = await mammoth.extractRawText({ arrayBuffer });
             setter(result.value);
+        } else if (
+            file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            file.type === 'application/vnd.ms-excel' ||
+            file.name.endsWith('.xlsx') ||
+            file.name.endsWith('.xls')
+        ) {
+            setLoadingMessage(t('extractingXlsxText'));
+            setIsLoading(true);
+            const arrayBuffer = await file.arrayBuffer();
+            const workbook = xlsx.read(arrayBuffer, { type: 'array' });
+            let fullText = '';
+            workbook.SheetNames.forEach(sheetName => {
+                const worksheet = workbook.Sheets[sheetName];
+                const sheetData = xlsx.utils.sheet_to_csv(worksheet);
+                fullText += sheetData + '\n';
+            });
+            setter(fullText.trim());
         } else {
             throw new Error(`Unsupported file type: ${file.type || 'unknown'}`);
         }
@@ -182,6 +200,25 @@ export const App: FC = () => {
             const arrayBuffer = bytes.buffer;
             const result = await mammoth.extractRawText({ arrayBuffer });
             setCvContent(result.value);
+        }
+        else if (
+            doc.fileMimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            doc.fileMimeType === 'application/vnd.ms-excel' ||
+            doc.fileName?.endsWith('.xlsx') ||
+            doc.fileName?.endsWith('.xls')
+        ) {
+            setLoadingMessage(t('extractingXlsxText'));
+            setIsLoading(true);
+            const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
+            const binaryString = atob(base64Content);
+            const workbook = xlsx.read(binaryString, { type: 'binary' });
+            let fullText = '';
+            workbook.SheetNames.forEach(sheetName => {
+                const worksheet = workbook.Sheets[sheetName];
+                const sheetData = xlsx.utils.sheet_to_csv(worksheet);
+                fullText += sheetData + '\n';
+            });
+            setCvContent(fullText.trim());
         }
         else {
             const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);

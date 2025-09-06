@@ -122,7 +122,7 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                 onChange={(e) => setCvContent(e.target.value)}
                 placeholder={t('cvPlaceholder')}
             />
-            <input type="file" ref={cvUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setCvContent)} accept=".txt,.md,.pdf,.doc,.docx" />
+            <input type="file" ref={cvUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setCvContent)} accept=".txt,.md,.pdf,.doc,.docx,.xls,.xlsx" />
             </Card>
             <Card>
             <div className="card-header-wrapper">
@@ -138,7 +138,7 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                 onChange={(e) => setJobDescriptionContent(e.target.value)}
                 placeholder={t('jobDescriptionPlaceholder')}
             />
-            <input type="file" ref={jobUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setJobDescriptionContent)} accept=".txt,.md,.pdf,.doc,.docx" />
+            <input type="file" ref={jobUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setJobDescriptionContent)} accept=".txt,.md,.pdf,.doc,.docx,.xls,.xlsx" />
             </Card>
         </Collapsible>
         

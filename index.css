@@ -546,9 +546,18 @@ textarea[readonly]:focus {
 
 .add-document-form {
     display: flex;
-    align-items: stretch;
+    align-items: flex-end;
     gap: 1rem;
     flex-wrap: wrap;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.add-document-inputs {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
 }
 
 .add-document-form .form-field {
@@ -1210,7 +1219,6 @@ textarea[readonly]:focus {
     color: hsl(var(--muted-foreground));
     cursor: pointer;
     transition: background-color 0.2s, border-color 0.2s;
-    margin-bottom: 1.5rem;
 }
 
 .drop-zone:hover,

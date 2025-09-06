@@ -5,6 +5,7 @@
 import React, { useState, useRef, FC, useEffect, ChangeEvent } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
+import * as xlsx from 'xlsx';
 import { translations } from '../../translations';
 import { DocumentItem } from '../types';
 import { formatDate } from '../utils';
@@ -80,6 +81,23 @@ const DocumentEditSidePane: FC<{
                         const arrayBuffer = bytes.buffer;
                         const result = await mammoth.extractRawText({ arrayBuffer });
                         setFilePreview(result.value);
+                    } else if (
+                        mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                        mimeType === 'application/vnd.ms-excel' ||
+                        doc.fileName?.endsWith('.xlsx') ||
+                        doc.fileName?.endsWith('.xls')
+                    ) {
+                        setFilePreview(t('parsingFileContent'));
+                        const binaryString = atob(base64Content);
+                        const workbook = xlsx.read(binaryString, { type: 'binary' });
+                        let fullText = '';
+                        workbook.SheetNames.forEach(sheetName => {
+                            fullText += `--- Sheet: ${sheetName} ---\n`;
+                            const worksheet = workbook.Sheets[sheetName];
+                            const sheetData = xlsx.utils.sheet_to_csv(worksheet);
+                            fullText += sheetData + '\n\n';
+                        });
+                        setFilePreview(fullText.trim());
                     } else {
                         setFilePreview(t('previewNotAvailableForText'));
                     }
@@ -378,12 +396,43 @@ export const MyDocumentsPage: FC<{
                 ref={fileInputRef}
                 style={{ display: 'none' }}
                 onChange={handleFileChange}
-                accept=".pdf,.doc,.docx,.txt,.md,image/*"
+                accept=".pdf,.doc,.docx,.txt,.md,.xls,.xlsx,image/*"
             />
 
             <Card className="add-job-card">
                 <h3 className="card-header">{t('addDocumentTitle')}</h3>
                 
+                <div className="add-document-form">
+                    <div className="add-document-inputs">
+                        <div className="form-field">
+                            <input 
+                                id="newDocName"
+                                type="text" 
+                                value={newDocumentName}
+                                onChange={e => setNewDocumentName(e.target.value)}
+                                placeholder={t('documentNamePlaceholder')}
+                                className="input"
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleAddDocument();}}
+                            />
+                        </div>
+                        <div className="form-field">
+                            <select
+                                id="newDocType"
+                                value={newDocumentType}
+                                onChange={(e) => setNewDocumentType(e.target.value)}
+                                className="input"
+                            >
+                                {documentTypes.map(type => (
+                                    <option key={type.id} value={type.id}>{t(type.nameKey)}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                    <Button onClick={handleAddDocument}>
+                        {t('addDocumentButton')}
+                    </Button>
+                </div>
+
                 <div 
                     className={`drop-zone ${isDragOver ? 'is-drag-over' : ''}`}
                     onDragOver={handleDragOver}
@@ -400,37 +449,8 @@ export const MyDocumentsPage: FC<{
                         ref={dropZoneFileInputRef}
                         style={{ display: 'none' }}
                         onChange={handleFileSelectFromDropZone}
-                        accept=".pdf,.doc,.docx,.txt,.md,image/*"
+                        accept=".pdf,.doc,.docx,.txt,.md,.xls,.xlsx,image/*"
                     />
-                </div>
-
-                <div className="add-document-form">
-                    <div className="form-field">
-                        <input 
-                            id="newDocName"
-                            type="text" 
-                            value={newDocumentName}
-                            onChange={e => setNewDocumentName(e.target.value)}
-                            placeholder={t('documentNamePlaceholder')}
-                            className="input"
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleAddDocument();}}
-                        />
-                    </div>
-                    <div className="form-field">
-                        <select
-                            id="newDocType"
-                            value={newDocumentType}
-                            onChange={(e) => setNewDocumentType(e.target.value)}
-                            className="input"
-                        >
-                            {documentTypes.map(type => (
-                                <option key={type.id} value={type.id}>{t(type.nameKey)}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <Button onClick={handleAddDocument}>
-                        {t('addDocumentButton')}
-                    </Button>
                 </div>
             </Card>
 
