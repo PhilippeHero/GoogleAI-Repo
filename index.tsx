@@ -37,7 +37,8 @@ const Textarea: FC<{
   style?: CSSProperties;
   id?: string;
   name?: string;
-}> = ({ value, onChange, placeholder, style, id, name }) => (
+  readOnly?: boolean;
+}> = ({ value, onChange, placeholder, style, id, name, readOnly }) => (
   <textarea
     className="input"
     value={value}
@@ -47,6 +48,7 @@ const Textarea: FC<{
     style={style}
     id={id}
     name={name}
+    readOnly={readOnly}
   />
 );
 
@@ -817,93 +819,205 @@ ${jobPageContent}`;
     );
 };
 
-const DocumentViewerModal: FC<{
-  doc: DocumentItem | null;
+const DocumentEditSidePane: FC<{
+  doc: Partial<DocumentItem> | null;
   isOpen: boolean;
   onClose: () => void;
+  onSave: (doc: Partial<DocumentItem>) => void;
+  onDelete: (docId: string) => void;
+  onUpload: (docId: string) => void;
   t: (key: keyof typeof translations['EN']) => string;
-}> = ({ doc, isOpen, onClose, t }) => {
-  if (!isOpen || !doc || !doc.fileContent || !doc.fileMimeType) return null;
+}> = ({ doc, isOpen, onClose, onSave, onDelete, onUpload, t }) => {
+    const [formData, setFormData] = useState<Partial<DocumentItem> | null>(null);
+    const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+    const [filePreview, setFilePreview] = useState('');
+    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+    
+    useEffect(() => {
+        setFormData(doc);
 
-  const renderContent = () => {
-    const mimeType = doc.fileMimeType!;
-    const content = doc.fileContent!;
+        if (doc?.fileContent && doc?.fileMimeType) {
+            setIsPreviewLoading(true);
+            setFilePreview('');
 
-    if (mimeType.startsWith('image/')) {
-      return <img src={content} alt={doc.fileName} style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 100px)', display: 'block', margin: '0 auto' }} />;
-    }
-    if (mimeType === 'application/pdf') {
-      return <iframe src={content} style={{ width: '100%', height: 'calc(90vh - 100px)', border: 'none' }} title={doc.fileName}></iframe>;
-    }
-    if (mimeType.startsWith('text/')) {
-        try {
-            const base64Content = content.substring(content.indexOf(',') + 1);
-            const binaryString = atob(base64Content);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            const decoder = new TextDecoder(); // defaults to utf-8
-            const textContent = decoder.decode(bytes);
-            return <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', height: '100%', overflowY: 'auto', margin: 0 }}>{textContent}</pre>;
-        } catch (e) {
-            console.error("Failed to decode text content:", e);
-            return <p>{t('errorPreviewingFile')}</p>
+            const parseContent = async () => {
+                try {
+                    const mimeType = doc.fileMimeType!;
+                    const content = doc.fileContent!;
+                    
+                    if (mimeType.startsWith('text/')) {
+                        const base64Content = content.substring(content.indexOf(',') + 1);
+                        const binaryString = atob(base64Content);
+                        const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+                        const decoder = new TextDecoder();
+                        const textContent = decoder.decode(bytes);
+                        setFilePreview(textContent);
+                    } else if (mimeType === 'application/pdf') {
+                        setFilePreview(t('parsingFileContent'));
+                        const pdfData = atob(content.substring(content.indexOf(',') + 1));
+                        const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+                        const pdf = await loadingTask.promise;
+                        
+                        let fullText = '';
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            const pageText = textContent.items.map(item => ('str' in item ? item.str : '')).join(' ');
+                            fullText += pageText + '\n';
+                        }
+                        setFilePreview(fullText.trim());
+                    } else {
+                        setFilePreview(t('previewNotAvailableForText'));
+                    }
+                } catch (e) {
+                    console.error("Failed to parse file content for preview:", e);
+                    setFilePreview(t('errorParsingFilePreview'));
+                } finally {
+                    setIsPreviewLoading(false);
+                }
+            };
+            parseContent();
+        } else if (doc) {
+            setFilePreview(t('noFileUploaded'));
+            setIsPreviewLoading(false);
         }
+
+    }, [doc, t]);
+
+    if (!formData) return null;
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => prev ? { ...prev, [name]: value } : null);
+    };
+
+    const handleSave = () => {
+        if (formData) {
+            onSave(formData);
+        }
+    };
+    
+    const handleUpload = () => {
+        if (formData?.id) {
+            onUpload(formData.id);
+        }
+    };
+
+    const handleDelete = () => {
+        if (formData?.id) {
+            setIsConfirmDeleteOpen(true);
+        }
+    };
+    
+    const handleConfirmDelete = () => {
+        if(formData?.id) {
+            onDelete(formData.id);
+        }
+        setIsConfirmDeleteOpen(false);
     }
     
-    return (
-        <div style={{ textAlign: 'center', padding: '2rem' }}>
-          <p>{t('previewNotAvailable')}</p>
-          <a href={content} download={doc.fileName}>
-            <Button>{t('downloadButton')}</Button>
-          </a>
-        </div>
-      );
-  };
+    const placeholderText = isPreviewLoading ? t('parsingFileContent') : (filePreview || t('noFileUploaded'));
 
-  return (
-    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="doc-viewer-title">
-      <div className="modal-content document-viewer-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="document-viewer-header">
-            <h2 id="doc-viewer-title">{doc.name} ({doc.fileName})</h2>
-            <Button onClick={onClose} variant="secondary" className="btn-icon" aria-label={t('closeButton')}>
-                <span style={{fontSize: '1.5rem', lineHeight: '1'}}>&times;</span>
-            </Button>
-        </div>
-        <div className="document-viewer-content">
-            {renderContent()}
-        </div>
-      </div>
-    </div>
-  );
+    return (
+        <>
+            <ConfirmationModal
+                isOpen={isConfirmDeleteOpen}
+                onClose={() => setIsConfirmDeleteOpen(false)}
+                onConfirm={handleConfirmDelete}
+                title={t('deleteDocumentConfirmationTitle')}
+                t={t}
+                className="modal-overlay-top"
+            >
+                <p>{t('deleteDocumentConfirmation')}</p>
+            </ConfirmationModal>
+            
+            <div className={`side-pane-overlay ${isOpen ? 'open' : ''}`} onClick={onClose} />
+            <div className={`side-pane ${isOpen ? 'open' : ''}`} role="dialog" aria-modal="true" aria-labelledby="side-pane-doc-title">
+                <div className="side-pane-header">
+                    <h2 id="side-pane-doc-title">{t('editDocumentTitle')}</h2>
+                    <Button onClick={onClose} variant="secondary" className="btn-icon" aria-label={t('closeButton')}>
+                        <span style={{fontSize: '1.5rem', lineHeight: '1'}}>&times;</span>
+                    </Button>
+                </div>
+                <div className="side-pane-body">
+                    <p>{t('editDocumentSubtitle')}</p>
+                    <div className="form-group-stack">
+                        <label htmlFor="edit-doc-name">{t('docNameColumn')}</label>
+                        <input id="edit-doc-name" name="name" value={formData.name || ''} onChange={handleChange} className="input" />
+                        
+                        <label htmlFor="edit-doc-type">{t('docTypeColumn')}</label>
+                        <select
+                            id="edit-doc-type"
+                            name="type"
+                            value={formData.type || ''}
+                            onChange={handleChange}
+                            className="input"
+                        >
+                            {documentTypes.map(type => (
+                                <option key={type.id} value={type.id}>{t(type.nameKey)}</option>
+                            ))}
+                        </select>
+
+                        <div className="form-group-expand" style={{marginTop: '1rem'}}>
+                            <label htmlFor="doc-content-preview">{t('documentContentHeader')}</label>
+                            <Textarea 
+                                id="doc-content-preview" 
+                                name="content" 
+                                value={filePreview} 
+                                onChange={() => {}} 
+                                placeholder={placeholderText}
+                                readOnly 
+                            />
+                        </div>
+                    </div>
+                </div>
+                <div className="side-pane-footer">
+                    <Button onClick={handleDelete} variant="secondary" className="btn-destructive" style={{ marginRight: 'auto' }}>
+                        {t('deleteButton')}
+                    </Button>
+                    <Button onClick={handleUpload} variant="secondary">{t('uploadNewVersionButton')}</Button>
+                    <Button onClick={onClose} variant="secondary">{t('cancelButton')}</Button>
+                    <Button onClick={handleSave}>{t('saveButton')}</Button>
+                </div>
+            </div>
+        </>
+    );
 };
+
+const documentTypes = [
+    { id: 'cv', nameKey: 'docTypeCv' as const },
+    { id: 'competenceMatrix', nameKey: 'docTypeCompetenceMatrix' as const },
+    { id: 'coverLetter', nameKey: 'docTypeCoverLetter' as const },
+    { id: 'references', nameKey: 'docTypeReferences' as const },
+    { id: 'other', nameKey: 'docTypeOther' as const },
+];
 
 const MyDocumentsPage: FC<{
     t: (key: keyof typeof translations['EN']) => string;
     documents: DocumentItem[];
     setDocuments: React.Dispatch<React.SetStateAction<DocumentItem[]>>;
 }> = ({ t, documents, setDocuments }) => {
-    const documentTypes = [
-        { id: 'cv', nameKey: 'docTypeCv' as const },
-        { id: 'competenceMatrix', nameKey: 'docTypeCompetenceMatrix' as const },
-        { id: 'coverLetter', nameKey: 'docTypeCoverLetter' as const },
-        { id: 'references', nameKey: 'docTypeReferences' as const },
-        { id: 'other', nameKey: 'docTypeOther' as const },
-    ];
-
     const [newDocumentName, setNewDocumentName] = useState('');
     const [newDocumentType, setNewDocumentType] = useState('cv');
-    const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
-    const [docToDelete, setDocToDelete] = useState<DocumentItem | null>(null);
+    const [isSidePaneOpen, setIsSidePaneOpen] = useState(false);
+    const [selectedDocument, setSelectedDocument] = useState<DocumentItem | null>(null);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [documentToUploadId, setDocumentToUploadId] = useState<string | null>(null);
-    const [docToDisplay, setDocToDisplay] = useState<DocumentItem | null>(null);
 
     const handleUploadClick = (docId: string) => {
         setDocumentToUploadId(docId);
         fileInputRef.current?.click();
+    };
+    
+    const handleOpenEditPane = (doc: DocumentItem) => {
+        setSelectedDocument(doc);
+        setIsSidePaneOpen(true);
+    };
+
+    const handleClosePane = () => {
+        setIsSidePaneOpen(false);
+        setSelectedDocument(null);
     };
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -923,17 +1037,21 @@ const MyDocumentsPage: FC<{
                       }
                     : doc
                 ));
+                // If the updated doc is the one in the pane, refresh the pane's content
+                if (selectedDocument && selectedDocument.id === documentToUploadId) {
+                    setSelectedDocument(prev => prev ? {
+                        ...prev,
+                        fileName: file.name,
+                        fileContent: fileContent,
+                        fileMimeType: file.type,
+                        lastUpdated: new Date().toISOString()
+                    } : null);
+                }
             };
             reader.readAsDataURL(file);
         }
         setDocumentToUploadId(null);
         if(event.target) event.target.value = ''; // Reset file input
-    };
-    
-    const handleDisplayDocument = (doc: DocumentItem) => {
-        if (doc.fileContent) {
-            setDocToDisplay(doc);
-        }
     };
 
     const handleAddDocument = () => {
@@ -948,17 +1066,14 @@ const MyDocumentsPage: FC<{
         setNewDocumentType('cv');
     };
     
-    const handleDeleteDocument = (doc: DocumentItem) => {
-        setDocToDelete(doc);
-        setIsConfirmDeleteOpen(true);
+    const handleSaveDocument = (docData: Partial<DocumentItem>) => {
+        setDocuments(docs => docs.map(d => d.id === docData.id ? { ...d, ...docData } as DocumentItem : d));
+        handleClosePane();
     };
 
-    const handleConfirmDelete = () => {
-        if (docToDelete) {
-            setDocuments(documents.filter(d => d.id !== docToDelete.id));
-        }
-        setIsConfirmDeleteOpen(false);
-        setDocToDelete(null);
+    const handleDeleteDocument = (docId: string) => {
+        setDocuments(documents.filter(d => d.id !== docId));
+        handleClosePane();
     };
     
     const getDocTypeName = (typeId: string) => {
@@ -968,22 +1083,16 @@ const MyDocumentsPage: FC<{
 
     return (
         <>
-            <DocumentViewerModal
-                doc={docToDisplay}
-                isOpen={docToDisplay !== null}
-                onClose={() => setDocToDisplay(null)}
+            <DocumentEditSidePane
+                isOpen={isSidePaneOpen}
+                doc={selectedDocument}
+                onClose={handleClosePane}
+                onSave={handleSaveDocument}
+                onDelete={handleDeleteDocument}
+                onUpload={handleUploadClick}
                 t={t}
             />
-            <ConfirmationModal
-                isOpen={isConfirmDeleteOpen}
-                onClose={() => setIsConfirmDeleteOpen(false)}
-                onConfirm={handleConfirmDelete}
-                title={t('deleteDocumentConfirmationTitle')}
-                t={t}
-            >
-                <p>{t('deleteDocumentConfirmation')}</p>
-            </ConfirmationModal>
-            
+
             <input 
                 type="file"
                 ref={fileInputRef}
@@ -1036,42 +1145,15 @@ const MyDocumentsPage: FC<{
                                 <th>{t('docTypeColumn')}</th>
                                 <th>{t('docFileNameColumn')}</th>
                                 <th>{t('docLastUpdatedColumn')}</th>
-                                <th>{t('docActionsColumn')}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {documents.map(doc => (
-                                <tr key={doc.id}>
+                                <tr key={doc.id} onClick={() => handleOpenEditPane(doc)}>
                                     <td>{doc.name}</td>
                                     <td>{getDocTypeName(doc.type)}</td>
                                     <td>{doc.fileName || '-'}</td>
                                     <td>{doc.lastUpdated ? formatDate(doc.lastUpdated) : '-'}</td>
-                                    <td className="actions-cell">
-                                      <div className="actions-content">
-                                        <Button 
-                                            onClick={() => handleDisplayDocument(doc)} 
-                                            variant="secondary" 
-                                            className="btn-sm"
-                                            disabled={!doc.fileName}
-                                        >
-                                            {t('displayButton')}
-                                        </Button>
-                                        <DropdownMenu
-                                            trigger={
-                                                <Button variant="secondary" className="btn-sm btn-icon" aria-label={t('moreOptionsButtonLabel')}>
-                                                    <MoreVerticalIcon style={{width: '1rem', height: '1rem'}}/>
-                                                </Button>
-                                            }
-                                        >
-                                            <button className="dropdown-item" onClick={() => handleUploadClick(doc.id)}>
-                                                {t('uploadButton')}
-                                            </button>
-                                            <button className="dropdown-item dropdown-item-destructive" onClick={() => handleDeleteDocument(doc)}>
-                                                {t('deleteButton')}
-                                            </button>
-                                        </DropdownMenu>
-                                      </div>
-                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1137,6 +1219,7 @@ const LandingPage: FC<{
         <div className="hero-content">
           <SparkIcon className="hero-spark-icon" />
           <h1 className="hero-title">{t('landingTitle')}</h1>
+          <SparkIcon className="sidebar-spark-icon" />
           <p className="hero-subtitle">{t('landingSubtitle')}</p>
           <Button onClick={() => setCurrentPage('generator')} className="hero-cta">
             {t('landingCtaButton')}

@@ -335,6 +335,18 @@ textarea {
   resize: vertical;
 }
 
+textarea[readonly] {
+  background-color: hsl(var(--secondary));
+  cursor: default;
+  color: hsl(var(--muted-foreground));
+}
+
+textarea[readonly]:focus {
+    outline: none;
+    border-color: hsl(var(--border));
+    box-shadow: none;
+}
+
 .card {
   background-color: hsl(var(--card));
   border: 1px solid hsl(var(--border));
