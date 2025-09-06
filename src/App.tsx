@@ -7,6 +7,7 @@ import React, { useState, useRef, useEffect, FC } from 'react';
 import { Packer, Document, Paragraph, TextRun } from 'docx';
 import saveAs from 'file-saver';
 import * as pdfjsLib from 'pdfjs-dist';
+import * as mammoth from 'mammoth';
 
 import { translations, LanguageCode } from '../translations';
 import { Page, DocumentItem } from './types';
@@ -109,6 +110,17 @@ export const App: FC = () => {
                 fullText += pageText + '\n';
             }
             setter(fullText.trim());
+        } else if (
+            file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            file.type === 'application/msword' ||
+            file.name.endsWith('.docx') ||
+            file.name.endsWith('.doc')
+        ) {
+            setLoadingMessage(t('extractingDocxText'));
+            setIsLoading(true);
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            setter(result.value);
         } else {
             throw new Error(`Unsupported file type: ${file.type || 'unknown'}`);
         }
@@ -151,6 +163,25 @@ export const App: FC = () => {
                 fullText += pageText + '\n';
             }
             setCvContent(fullText.trim());
+        }
+        else if (
+            doc.fileMimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            doc.fileMimeType === 'application/msword' ||
+            doc.fileName?.endsWith('.docx') ||
+            doc.fileName?.endsWith('.doc')
+        ) {
+            setLoadingMessage(t('extractingDocxText'));
+            setIsLoading(true);
+            const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
+            const binaryString = atob(base64Content);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const arrayBuffer = bytes.buffer;
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            setCvContent(result.value);
         }
         else {
             const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);

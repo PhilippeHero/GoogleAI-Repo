@@ -4,6 +4,7 @@
 */
 import React, { useState, useRef, FC, useEffect, ChangeEvent } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import * as mammoth from 'mammoth';
 import { translations } from '../../translations';
 import { DocumentItem } from '../types';
 import { formatDate } from '../utils';
@@ -43,9 +44,9 @@ const DocumentEditSidePane: FC<{
                 try {
                     const mimeType = doc.fileMimeType!;
                     const content = doc.fileContent!;
+                    const base64Content = content.substring(content.indexOf(',') + 1);
                     
                     if (mimeType.startsWith('text/')) {
-                        const base64Content = content.substring(content.indexOf(',') + 1);
                         const binaryString = atob(base64Content);
                         const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
                         const decoder = new TextDecoder();
@@ -53,7 +54,7 @@ const DocumentEditSidePane: FC<{
                         setFilePreview(textContent);
                     } else if (mimeType === 'application/pdf') {
                         setFilePreview(t('parsingFileContent'));
-                        const pdfData = atob(content.substring(content.indexOf(',') + 1));
+                        const pdfData = atob(base64Content);
                         const loadingTask = pdfjsLib.getDocument({ data: pdfData });
                         const pdf = await loadingTask.promise;
                         
@@ -65,6 +66,20 @@ const DocumentEditSidePane: FC<{
                             fullText += pageText + '\n';
                         }
                         setFilePreview(fullText.trim());
+                    } else if (
+                        mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                        mimeType === 'application/msword'
+                    ) {
+                        setFilePreview(t('parsingFileContent'));
+                        const binaryString = atob(base64Content);
+                        const len = binaryString.length;
+                        const bytes = new Uint8Array(len);
+                        for (let i = 0; i < len; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+                        const arrayBuffer = bytes.buffer;
+                        const result = await mammoth.extractRawText({ arrayBuffer });
+                        setFilePreview(result.value);
                     } else {
                         setFilePreview(t('previewNotAvailableForText'));
                     }
@@ -193,8 +208,10 @@ export const MyDocumentsPage: FC<{
     const [newDocumentType, setNewDocumentType] = useState('cv');
     const [isSidePaneOpen, setIsSidePaneOpen] = useState(false);
     const [selectedDocument, setSelectedDocument] = useState<DocumentItem | null>(null);
+    const [isDragOver, setIsDragOver] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const dropZoneFileInputRef = useRef<HTMLInputElement>(null);
     const [documentToUploadId, setDocumentToUploadId] = useState<string | null>(null);
 
     const handleUploadClick = (docId: string) => {
@@ -247,15 +264,29 @@ export const MyDocumentsPage: FC<{
     };
 
     const handleAddDocument = () => {
-        if (!newDocumentName.trim()) return;
-        const newDoc: DocumentItem = {
-            id: `doc-${Date.now()}`,
-            name: newDocumentName,
-            type: newDocumentType,
-        };
-        setDocuments([newDoc, ...documents]);
-        setNewDocumentName('');
-        setNewDocumentType('cv');
+        if (newDocumentName.trim()) {
+            const newDoc: DocumentItem = {
+                id: `doc-${Date.now()}`,
+                name: newDocumentName,
+                type: newDocumentType,
+            };
+            setDocuments([newDoc, ...documents]);
+            setNewDocumentName('');
+            setNewDocumentType('cv');
+        } else {
+            // If name is empty, create a placeholder doc and open the editor
+            const newDoc: DocumentItem = {
+                id: `doc-${Date.now()}`,
+                name: '', // Empty name
+                type: newDocumentType,
+            };
+            setDocuments(docs => [newDoc, ...docs]);
+            setSelectedDocument(newDoc);
+            setIsSidePaneOpen(true);
+            // Reset form fields after opening pane
+            setNewDocumentName('');
+            setNewDocumentType('cv');
+        }
     };
     
     const handleSaveDocument = (docData: Partial<DocumentItem>) => {
@@ -271,6 +302,63 @@ export const MyDocumentsPage: FC<{
     const getDocTypeName = (typeId: string) => {
         const type = documentTypes.find(dt => dt.id === typeId);
         return type ? t(type.nameKey) : t('docTypeOther');
+    };
+
+    const processDroppedFile = (file: File) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const fileContent = e.target?.result as string;
+            // Use file name (without extension) as the default document name
+            const docName = file.name.replace(/\.[^/.]+$/, "");
+            
+            const newDoc: DocumentItem = {
+                id: `doc-${Date.now()}`,
+                name: docName,
+                type: newDocumentType,
+                fileName: file.name,
+                fileContent: fileContent,
+                fileMimeType: file.type,
+                lastUpdated: new Date().toISOString()
+            };
+            
+            setDocuments(docs => [newDoc, ...docs]);
+            
+            // Open side pane for the new doc to allow editing/confirmation
+            setSelectedDocument(newDoc);
+            setIsSidePaneOpen(true);
+
+            // Reset form fields
+            setNewDocumentName('');
+            setNewDocumentType('cv');
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        setIsDragOver(true);
+    };
+
+    const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        setIsDragOver(false);
+    };
+
+    const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        setIsDragOver(false);
+        const file = event.dataTransfer.files?.[0];
+        if (file) {
+            processDroppedFile(file);
+        }
+    };
+
+    const handleFileSelectFromDropZone = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            processDroppedFile(file);
+        }
+        if (event.target) event.target.value = ''; // Reset file input
     };
 
     return (
@@ -295,9 +383,29 @@ export const MyDocumentsPage: FC<{
 
             <Card className="add-job-card">
                 <h3 className="card-header">{t('addDocumentTitle')}</h3>
+                
+                <div 
+                    className={`drop-zone ${isDragOver ? 'is-drag-over' : ''}`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => dropZoneFileInputRef.current?.click()}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') dropZoneFileInputRef.current?.click();}}
+                >
+                    <p>{t('dragAndDropPrompt')}</p>
+                    <input 
+                        type="file"
+                        ref={dropZoneFileInputRef}
+                        style={{ display: 'none' }}
+                        onChange={handleFileSelectFromDropZone}
+                        accept=".pdf,.doc,.docx,.txt,.md,image/*"
+                    />
+                </div>
+
                 <div className="add-document-form">
                     <div className="form-field">
-                        <label htmlFor="newDocName">{t('documentNameLabel')}</label>
                         <input 
                             id="newDocName"
                             type="text" 
@@ -309,7 +417,6 @@ export const MyDocumentsPage: FC<{
                         />
                     </div>
                     <div className="form-field">
-                        <label htmlFor="newDocType">{t('documentTypeLabel')}</label>
                         <select
                             id="newDocType"
                             value={newDocumentType}

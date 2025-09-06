@@ -537,6 +537,7 @@ textarea[readonly]:focus {
 .add-job-controls {
     display: flex;
     gap: 1rem;
+    align-items: stretch;
 }
 
 .add-job-controls .input {
@@ -545,15 +546,13 @@ textarea[readonly]:focus {
 
 .add-document-form {
     display: flex;
-    align-items: flex-end;
+    align-items: stretch;
     gap: 1rem;
     flex-wrap: wrap;
 }
 
 .add-document-form .form-field {
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
     flex-grow: 1;
     min-width: 200px;
 }
@@ -646,6 +645,10 @@ textarea[readonly]:focus {
     border-bottom: 1px solid hsl(var(--border));
     word-break: break-word; /* Allow long words to break and wrap */
     vertical-align: middle;
+}
+
+.jobs-table td {
+    color: hsl(var(--foreground));
 }
 
 .jobs-table .truncate-text {
@@ -1196,6 +1199,29 @@ textarea[readonly]:focus {
     color: hsl(var(--muted-foreground));
     margin: 0;
     line-height: 1.6;
+}
+
+/* Drag and Drop Zone */
+.drop-zone {
+    border: 2px dashed hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 2rem;
+    text-align: center;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    margin-bottom: 1.5rem;
+}
+
+.drop-zone:hover,
+.drop-zone.is-drag-over {
+    background-color: hsl(var(--secondary));
+    border-color: hsl(var(--primary));
+}
+
+.drop-zone p {
+    margin: 0;
+    font-size: 0.9rem;
 }
 
 /* --- Responsive Design --- */
