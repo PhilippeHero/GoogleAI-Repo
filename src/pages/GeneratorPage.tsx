@@ -7,8 +7,34 @@ import { Packer, Document, Paragraph, TextRun } from 'docx';
 import saveAs from 'file-saver';
 import { translations } from '../../translations';
 import { DocumentItem } from '../types';
-import { Collapsible, Card, Button, Textarea } from '../components/ui';
-import { RocketIcon } from '../components/icons';
+import { Collapsible, Card, Button, Textarea, NumberStepper } from '../components/ui';
+import { RocketIcon, LockIcon } from '../components/icons';
+
+type LockedButtonWrapperProps = {
+    isAuthenticated: boolean;
+    onClick: () => void;
+    openAuthModal: () => void;
+    // Fix: Changed `children` type to be more specific using `React.ComponentProps` to enable type-safe cloning of the Button component.
+    children: React.ReactElement<React.ComponentProps<typeof Button>>;
+    t: (key: keyof typeof translations['EN']) => string;
+    disabled?: boolean;
+};
+
+const LockedButtonWrapper: FC<LockedButtonWrapperProps> = ({ isAuthenticated, onClick, openAuthModal, children, t, disabled }) => {
+    if (isAuthenticated) {
+        // Fix: Removed cast now that `children` is correctly typed. This resolves the error on the `onClick` prop.
+        return <>{React.cloneElement(children, { onClick: onClick, disabled: disabled })}</>;
+    }
+
+    return (
+        <div className="btn-locked-wrapper" onClick={openAuthModal}>
+            <span className="btn-locked-tooltip">{t('unlockFeatureTooltip')}</span>
+            {/* Fix: Removed cast and correctly accessed `children.props.children`. This resolves errors with the `disabled` prop and accessing `children`. */}
+            {React.cloneElement(children, { disabled: true, children: <><LockIcon className="locked-icon" />{ children.props.children}</> })}
+        </div>
+    );
+};
+
 
 type GeneratorPageProps = {
     t: (key: keyof typeof translations['EN']) => string;
@@ -30,16 +56,19 @@ type GeneratorPageProps = {
     setIsInputOpen: React.Dispatch<React.SetStateAction<boolean>>;
     isOutputOpen: boolean;
     setIsOutputOpen: React.Dispatch<React.SetStateAction<boolean>>;
-    setLoadingMessage: React.Dispatch<React.SetStateAction<string>>;
+    setLoadingMessage: React.Dispatch<React.SetStateAction<React.ReactNode>>;
+    isAuthenticated: boolean;
+    openAuthModal: () => void;
 }
 
 export const GeneratorPage: FC<GeneratorPageProps> = ({
     t, cvContent, setCvContent, jobDescriptionContent, setJobDescriptionContent,
     handleFileUpload, setIsSelectCvModalOpen, generateContent, isLoading,
     keywords, setKeywords, coverLetter, setCoverLetter, shortProfile, setShortProfile,
-    isInputOpen, setIsInputOpen, isOutputOpen, setIsOutputOpen, setLoadingMessage
+    isInputOpen, setIsInputOpen, isOutputOpen, setIsOutputOpen, setLoadingMessage,
+    isAuthenticated, openAuthModal
 }) => {
-    const [maxWords, setMaxWords] = useState(300);
+    const [maxWords, setMaxWords] = useState(150);
     const [outputFormat, setOutputFormat] = useState('MS Word');
     const [language, setLanguage] = useState('German');
     
@@ -99,7 +128,18 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
           case 'French': translatedLanguage = t('languageFrench'); break;
           default: translatedLanguage = language;
         }
-        const message = `${t('generatingModalMessage')} ${maxWords} ${t('words')} ${t('in')} ${translatedLanguage}, ${t('in')} ${translatedOutputFormat} ${t('format')}...`;
+
+        const message = (
+            <>
+                <p id="loading-dialog-title">{t('generatingModalMessage')}</p>
+                <ul className="loading-details-list">
+                    <li>{`${t('modalWordsLabel')}: ${maxWords}`}</li>
+                    <li>{`${t('languageLabel')}: ${translatedLanguage}`}</li>
+                    <li>{`${t('modalFormatLabel')}: ${translatedOutputFormat}`}</li>
+                </ul>
+            </>
+        );
+        
         setLoadingMessage(message);
         generateContent(language, maxWords);
     }
@@ -113,8 +153,22 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                 <h3 className="card-header">{t('cvHeader')}</h3>
                 <div className="card-header-actions">
                     {cvContent && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
-                    <Button variant="secondary" onClick={() => setIsSelectCvModalOpen(true)} className="btn-sm">{t('selectFileButton')}</Button>
-                    <Button variant="secondary" onClick={() => cvUploadRef.current?.click()} className="btn-sm">{t('uploadFileButton')}</Button>
+                    <LockedButtonWrapper
+                        isAuthenticated={isAuthenticated}
+                        onClick={() => setIsSelectCvModalOpen(true)}
+                        openAuthModal={openAuthModal}
+                        t={t}
+                    >
+                        <Button variant="secondary" className="btn-sm">{t('selectFileButton')}</Button>
+                    </LockedButtonWrapper>
+                    <LockedButtonWrapper
+                        isAuthenticated={isAuthenticated}
+                        onClick={() => cvUploadRef.current?.click()}
+                        openAuthModal={openAuthModal}
+                        t={t}
+                    >
+                        <Button variant="secondary" className="btn-sm">{t('uploadFileButton')}</Button>
+                    </LockedButtonWrapper>
                     {cvContent && <Button variant="secondary" onClick={() => setCvContent('')} className="btn-sm">{t('clearButton')}</Button>}
                 </div>
             </div>
@@ -130,7 +184,14 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                 <h3 className="card-header">{t('jobDescriptionHeader')}</h3>
                 <div className="card-header-actions">
                 {jobDescriptionContent && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
-                <Button variant="secondary" onClick={() => jobUploadRef.current?.click()} className="btn-sm">{t('uploadFileButton')}</Button>
+                <LockedButtonWrapper
+                    isAuthenticated={isAuthenticated}
+                    onClick={() => jobUploadRef.current?.click()}
+                    openAuthModal={openAuthModal}
+                    t={t}
+                >
+                    <Button variant="secondary" className="btn-sm">{t('uploadFileButton')}</Button>
+                </LockedButtonWrapper>
                 {jobDescriptionContent && <Button variant="secondary" onClick={() => setJobDescriptionContent('')} className="btn-sm">{t('clearButton')}</Button>}
                 </div>
             </div>
@@ -152,12 +213,16 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
             <div className="settings-options">
                 <div className="form-group">
                 <label htmlFor="maxWords">{t('maxWordsLabel')}</label>
-                <input 
+                <NumberStepper
                     id="maxWords"
-                    type="number"
                     value={maxWords}
-                    onChange={(e) => setMaxWords(parseInt(e.target.value, 10))}
-                    className="input"
+                    onChange={setMaxWords}
+                    step={50}
+                    min={50}
+                    lockedLimit={150}
+                    isAuthenticated={isAuthenticated}
+                    openAuthModal={openAuthModal}
+                    t={t}
                 />
                 </div>
                 <div className="form-group">
@@ -206,11 +271,19 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
             <div className="card-header-wrapper">
                 <h3 className="card-header">{t('shortProfileHeader')}</h3>
                 <div className="card-header-actions">
-                {shortProfile && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
-                <Button onClick={handleShortProfileDownload} disabled={!shortProfile} variant="secondary" className="btn-sm">
-                    {outputFormat === 'MS Word' ? t('downloadButton') : t('copyButton')}
-                </Button>
-                {shortProfile && <Button variant="secondary" onClick={() => setShortProfile('')} className="btn-sm">{t('clearButton')}</Button>}
+                    {shortProfile && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
+                    <LockedButtonWrapper
+                        isAuthenticated={isAuthenticated}
+                        onClick={handleShortProfileDownload}
+                        openAuthModal={openAuthModal}
+                        t={t}
+                        disabled={!shortProfile}
+                    >
+                        <Button variant="secondary" className="btn-sm">
+                            {outputFormat === 'MS Word' ? t('downloadButton') : t('copyButton')}
+                        </Button>
+                    </LockedButtonWrapper>
+                    {shortProfile && <Button variant="secondary" onClick={() => setShortProfile('')} className="btn-sm">{t('clearButton')}</Button>}
                 </div>
             </div>
             <Textarea 
@@ -223,11 +296,19 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                 <div className="card-header-wrapper">
                 <h3 className="card-header">{t('generatedCoverLetterHeader')}</h3>
                 <div className="card-header-actions">
-                {coverLetter && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
-                <Button onClick={handleCoverLetterDownload} disabled={!coverLetter} variant="secondary" className="btn-sm">
-                    {outputFormat === 'MS Word' ? t('downloadButton') : t('copyButton')}
-                </Button>
-                {coverLetter && <Button variant="secondary" onClick={() => setCoverLetter('')} className="btn-sm">{t('clearButton')}</Button>}
+                    {coverLetter && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
+                    <LockedButtonWrapper
+                        isAuthenticated={isAuthenticated}
+                        onClick={handleCoverLetterDownload}
+                        openAuthModal={openAuthModal}
+                        t={t}
+                        disabled={!coverLetter}
+                    >
+                        <Button variant="secondary" className="btn-sm">
+                            {outputFormat === 'MS Word' ? t('downloadButton') : t('copyButton')}
+                        </Button>
+                    </LockedButtonWrapper>
+                    {coverLetter && <Button variant="secondary" onClick={() => setCoverLetter('')} className="btn-sm">{t('clearButton')}</Button>}
                 </div>
             </div>
             <Textarea 

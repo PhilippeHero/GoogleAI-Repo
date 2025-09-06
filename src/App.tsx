@@ -10,11 +10,17 @@ import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
 import * as xlsx from 'xlsx';
 
+// Fix: Use Firebase v8 compat imports and types
+// Fix: Changed firebase/app to firebase/compat/app to use v8 compatibility mode and resolve type errors.
+import firebase from 'firebase/compat/app';
+import { auth } from './firebase';
+
 import { translations, LanguageCode } from '../translations';
 import { Page, DocumentItem } from './types';
 import { Button, Modal } from './components/ui';
+import { AuthModal } from './components/AuthModal';
 import { SelectCvModal } from './components/SelectCvModal';
-import { HomeIcon, SunIcon, MoonIcon, SparkIcon, FileTextIcon, BriefcaseIcon, UserIcon, MenuIcon } from './components/icons';
+import { HomeIcon, SunIcon, MoonIcon, SparkIcon, FileTextIcon, BriefcaseIcon, UserIcon, MenuIcon, LogInIcon, LogOutIcon } from './components/icons';
 import { LandingPage } from './pages/LandingPage';
 import { GeneratorPage } from './pages/GeneratorPage';
 import { JobsListPage } from './pages/JobsListPage';
@@ -32,12 +38,17 @@ export const App: FC = () => {
   // Global State
   const [theme, setTheme] = useState('light');
   const [uiLanguage, setUiLanguage] = useState<LanguageCode>('DE');
+  // Fix: Use Firebase v8 User type
+  const [user, setUser] = useState<firebase.User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const isAuthenticated = !!user;
   
   // Generator State
   const [cvContent, setCvContent] = useState(() => localStorage.getItem('cvContent') || '');
   const [jobDescriptionContent, setJobDescriptionContent] = useState(() => localStorage.getItem('jobDescriptionContent') || '');
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('');
+  const [loadingMessage, setLoadingMessage] = useState<React.ReactNode>('');
   const [error, setError] = useState('');
   const [keywords, setKeywords] = useState<string[]>(() => JSON.parse(localStorage.getItem('keywords') || '[]'));
   const [coverLetter, setCoverLetter] = useState(() => localStorage.getItem('coverLetter') || '');
@@ -73,6 +84,16 @@ export const App: FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    // Fix: Use Firebase v8 onAuthStateChanged method
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+        setUser(currentUser);
+        setIsAuthLoading(false);
+    });
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
+
   // Persist generator content to localStorage
   useEffect(() => { localStorage.setItem('cvContent', cvContent); }, [cvContent]);
   useEffect(() => { localStorage.setItem('jobDescriptionContent', jobDescriptionContent); }, [jobDescriptionContent]);
@@ -83,6 +104,23 @@ export const App: FC = () => {
 
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+  };
+
+  const handleLoginSuccess = () => {
+      // The onAuthStateChanged listener will handle the user state update.
+      // This function's only job is to close the modal.
+      setIsAuthModalOpen(false);
+  };
+
+  const handleLogout = async () => {
+      try {
+          // Fix: Use Firebase v8 signOut method
+          await auth.signOut();
+          // user state will be updated to null by onAuthStateChanged
+      } catch (error) {
+          console.error("Error signing out: ", error);
+          // Optionally set an error message to display to the user
+      }
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<string>>) => {
@@ -250,7 +288,6 @@ export const App: FC = () => {
     setIsInputOpen(false);
     setIsOutputOpen(true);
     
-    setLoadingMessage('');
     setIsLoading(true);
     setError('');
     setKeywords([]);
@@ -393,6 +430,8 @@ ${extractedKeywords.join(', ')}`;
                         isOutputOpen={isOutputOpen}
                         setIsOutputOpen={setIsOutputOpen}
                         setLoadingMessage={setLoadingMessage}
+                        isAuthenticated={isAuthenticated}
+                        openAuthModal={() => setIsAuthModalOpen(true)}
                       />;
           case 'jobs':
               return <JobsListPage t={t} />;
@@ -406,9 +445,19 @@ ${extractedKeywords.join(', ')}`;
   const sidebarClasses = `sidebar ${isSidebarOpen ? 'open' : ''} ${isDesktop ? '' : 'mobile'}`;
   const mainContainerClasses = `main-container ${isDesktop && isSidebarOpen ? 'sidebar-open' : ''}`;
 
+  if (isAuthLoading) {
+    return <Modal message="Authenticating..." footerText={t('modalFooterText')} />;
+  }
+
   return (
     <>
       {isLoading && <Modal message={loadingMessage} footerText={t('modalFooterText')} />}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+        t={t}
+      />
       <SelectCvModal
         isOpen={isSelectCvModalOpen}
         onClose={() => setIsSelectCvModalOpen(false)}
@@ -419,83 +468,76 @@ ${extractedKeywords.join(', ')}`;
       {!isDesktop && isSidebarOpen && <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)} />}
       
       <nav className={sidebarClasses}>
-          <div className="sidebar-header" onClick={() => setCurrentPage('landing')} role="button" tabIndex={0}>
-            <div className="sidebar-title-container">
-              <h1 className="sidebar-title">Pearl Labor</h1>
-              <SparkIcon className="sidebar-spark-icon" />
-            </div>
+          <div className="sidebar-header" onClick={() => handleNavClick('landing')} role="button" tabIndex={0}>
+              <div className="sidebar-title-container">
+                  <SparkIcon className="sidebar-spark-icon" />
+                  <h2 className="sidebar-title">Pearl Labor</h2>
+              </div>
           </div>
           <ul className="sidebar-nav">
               <li className={currentPage === 'landing' ? 'active' : ''}>
-                  <button onClick={() => handleNavClick('landing')}>
-                      <HomeIcon />
-                      <span>{t('menuHome')}</span>
-                  </button>
+                  <button onClick={() => handleNavClick('landing')}><HomeIcon /> {t('menuHome')}</button>
               </li>
               <li className={currentPage === 'generator' ? 'active' : ''}>
-                  <button onClick={() => handleNavClick('generator')}>
-                      <FileTextIcon />
-                      <span>{t('menuGenerator')}</span>
-                  </button>
+                  <button onClick={() => handleNavClick('generator')}><FileTextIcon /> {t('menuGenerator')}</button>
               </li>
               <li className={currentPage === 'jobs' ? 'active' : ''}>
-                  <button onClick={() => handleNavClick('jobs')}>
-                      <BriefcaseIcon />
-                      <span>{t('menuJobs')}</span>
-                  </button>
+                  <button onClick={() => handleNavClick('jobs')}><BriefcaseIcon /> {t('menuJobs')}</button>
               </li>
               <li className={currentPage === 'documents' ? 'active' : ''}>
-                  <button onClick={() => handleNavClick('documents')}>
-                      <UserIcon />
-                      <span>{t('menuDocuments')}</span>
-                  </button>
+                  <button onClick={() => handleNavClick('documents')}><UserIcon /> {t('menuDocuments')}</button>
               </li>
           </ul>
       </nav>
-      
+
       <div className={mainContainerClasses}>
-          <header className="app-header">
-            <div className="header-main-section">
-                <Button 
-                    onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-                    variant="secondary" 
-                    className="btn-icon sidebar-trigger"
-                    aria-label={isSidebarOpen ? "Collapse menu" : "Expand menu"}
-                >
-                    <MenuIcon />
-                </Button>
-                <div className="page-title">
-                    <h1>
-                        {getPageTitle()}
-                        {currentPage === 'landing' && <SparkIcon className="title-spark-icon" />}
-                    </h1>
-                    <p className="app-subtitle">{getPageSubtitle()}</p>
-                </div>
-            </div>
-            <div className="header-controls">
-              <select
-                  id="uiLanguage"
-                  value={uiLanguage}
-                  onChange={(e) => setUiLanguage(e.target.value as LanguageCode)}
-                  className="input"
-                  aria-label={t('selectUiLanguageLabel')}
-                >
-                  <option value="EN">EN</option>
-                  <option value="DE">DE</option>
-                  <option value="FR">FR</option>
-                </select>
-              <Button onClick={toggleTheme} variant="secondary" className="btn-icon" aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}>
-                {theme === 'light' ? <MoonIcon /> : <SunIcon />}
-              </Button>
-            </div>
-          </header>
-          
-          <main className="main-content">
-            {renderPage()}
-          </main>
-          
-          {error && <div className="error" role="alert">{error}</div>}
+          <div className="main-content-wrapper">
+              <header className="app-header">
+                  <div className="header-main-section">
+                      <Button onClick={() => setIsSidebarOpen(!isSidebarOpen)} variant="secondary" className="btn-icon" aria-label="Toggle menu">
+                          <MenuIcon />
+                      </Button>
+                      <div className="page-title">
+                          <h1>
+                              {getPageTitle()}
+                              <SparkIcon className="title-spark-icon" />
+                          </h1>
+                          <p className="app-subtitle">{getPageSubtitle()}</p>
+                      </div>
+                  </div>
+                  <div className="header-controls">
+                      <select 
+                          value={uiLanguage} 
+                          onChange={e => setUiLanguage(e.target.value as LanguageCode)} 
+                          className="input"
+                          aria-label={t('selectUiLanguageLabel')}
+                      >
+                          <option value="EN">{t('languageEnglish')}</option>
+                          <option value="DE">{t('languageGerman')}</option>
+                          <option value="FR">{t('languageFrench')}</option>
+                      </select>
+                      <Button onClick={toggleTheme} variant="secondary" className="btn-icon" aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>
+                          {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+                      </Button>
+                      {isAuthenticated ? (
+                          <Button onClick={handleLogout} variant="secondary">
+                              <LogOutIcon /> {t('logoutButton')}
+                          </Button>
+                      ) : (
+                          <Button onClick={() => setIsAuthModalOpen(true)} variant="secondary">
+                              <LogInIcon /> {t('loginRegisterButton')}
+                          </Button>
+                      )}
+                  </div>
+              </header>
+
+              {error && <div className="error" role="alert">{error}</div>}
+
+              <main className="main-content">
+                  {renderPage()}
+              </main>
+          </div>
       </div>
     </>
   );
-}
+};

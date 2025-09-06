@@ -4,15 +4,16 @@
 */
 import React, { useState, useRef, FC, CSSProperties, useEffect, ChangeEvent } from 'react';
 import { translations } from '../../translations';
-import { PlusIcon, MinusIcon } from './icons';
+import { PlusIcon, MinusIcon, LockIcon } from './icons';
 
 export const Card: FC<{ children: React.ReactNode, className?: string }> = ({ children, className }) => (
   <div className={`card ${className || ''}`}>{children}</div>
 );
 
-export const Button: FC<{ children: React.ReactNode, onClick?: () => void, disabled?: boolean, variant?: 'primary' | 'secondary', className?: string, style?: CSSProperties, 'aria-label'?: string }> = 
-({ children, onClick, disabled, variant = 'primary', className, style, 'aria-label': ariaLabel }) => (
-  <button onClick={onClick} disabled={disabled} className={`btn btn-${variant} ${className || ''}`} style={style} aria-label={ariaLabel}>
+// Fix: Added the `type` prop to allow this component to be used as a submit button in forms.
+export const Button: FC<{ children: React.ReactNode, onClick?: () => void, disabled?: boolean, variant?: 'primary' | 'secondary', className?: string, style?: CSSProperties, 'aria-label'?: string, type?: 'submit' | 'reset' | 'button' }> = 
+({ children, onClick, disabled, variant = 'primary', className, style, 'aria-label': ariaLabel, type }) => (
+  <button onClick={onClick} disabled={disabled} className={`btn btn-${variant} ${className || ''}`} style={style} aria-label={ariaLabel} type={type}>
     {children}
   </button>
 );
@@ -61,13 +62,13 @@ export const Collapsible: FC<{ title: string, children: React.ReactNode, isOpen:
   );
 };
 
-export const Modal: FC<{ message: string, footerText: string }> = ({ message, footerText }) => {
+export const Modal: FC<{ message: React.ReactNode, footerText: string }> = ({ message, footerText }) => {
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="loading-dialog-title">
       <div className="modal-content">
         <div className="spinner" />
         <div>
-          <p id="loading-dialog-title">{message}</p>
+          <div className="loading-message-container">{message}</div>
           <small className="modal-footer-text">{footerText}</small>
         </div>
       </div>
@@ -141,6 +142,76 @@ export const DropdownMenu: FC<{
         <div className="dropdown-content">
           {childrenWithCloseHandler}
         </div>
+      )}
+    </div>
+  );
+};
+
+export const NumberStepper: FC<{
+  id: string;
+  value: number;
+  onChange: (newValue: number) => void;
+  step?: number;
+  min?: number;
+  max?: number;
+  lockedLimit?: number;
+  isAuthenticated?: boolean;
+  openAuthModal?: () => void;
+  t?: (key: keyof typeof translations['EN']) => string;
+}> = ({ id, value, onChange, step = 50, min = 0, max, lockedLimit, isAuthenticated, openAuthModal, t }) => {
+    
+  const handleDecrement = () => {
+    onChange(Math.max(min, value - step));
+  };
+
+  const handleIncrementClick = () => {
+    const newValue = value + step;
+    if (max === undefined || newValue <= max) {
+      onChange(newValue);
+    }
+  };
+
+  const isIncrementLocked = lockedLimit !== undefined && value >= lockedLimit && !isAuthenticated;
+  const isIncrementDisabled = (max !== undefined && value >= max);
+  const isDecrementDisabled = value <= min;
+
+  const IncrementButton = (
+    <button 
+      type="button" 
+      onClick={handleIncrementClick} 
+      disabled={isIncrementDisabled || isIncrementLocked}
+      className="stepper-btn"
+      aria-label="Increment"
+    >
+      {isIncrementLocked ? <LockIcon className="locked-icon" /> : <PlusIcon />}
+    </button>
+  );
+
+  return (
+    <div className="number-stepper" id={id}>
+      <button 
+        type="button" 
+        onClick={handleDecrement} 
+        disabled={isDecrementDisabled} 
+        className="stepper-btn"
+        aria-label="Decrement"
+      >
+        <MinusIcon />
+      </button>
+      <input
+        type="text"
+        readOnly
+        className="stepper-value"
+        value={value}
+        aria-live="polite"
+      />
+      {isIncrementLocked && openAuthModal && t ? (
+        <div className="btn-locked-wrapper" onClick={openAuthModal}>
+          <span className="btn-locked-tooltip">{t('unlockFeatureTooltip')}</span>
+          {IncrementButton}
+        </div>
+      ) : (
+        IncrementButton
       )}
     </div>
   );
