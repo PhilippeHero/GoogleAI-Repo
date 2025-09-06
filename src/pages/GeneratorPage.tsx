@@ -40,7 +40,7 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
 }) => {
     const [maxWords, setMaxWords] = useState(300);
     const [outputFormat, setOutputFormat] = useState('MS Word');
-    const [language, setLanguage] = useState('English');
+    const [language, setLanguage] = useState('German');
     
     const cvUploadRef = useRef<HTMLInputElement>(null);
     const jobUploadRef = useRef<HTMLInputElement>(null);
@@ -232,6 +232,7 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                 value={coverLetter}
                 onChange={(e) => setCoverLetter(e.target.value)}
                 placeholder={t('coverLetterPlaceholder')}
+                style={{minHeight: '22rem'}}
             />
             </Card>
         </Collapsible>

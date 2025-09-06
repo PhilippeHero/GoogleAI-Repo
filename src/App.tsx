@@ -31,7 +31,7 @@ export const App: FC = () => {
 
   // Global State
   const [theme, setTheme] = useState('light');
-  const [uiLanguage, setUiLanguage] = useState<LanguageCode>('EN');
+  const [uiLanguage, setUiLanguage] = useState<LanguageCode>('DE');
   
   // Generator State
   const [cvContent, setCvContent] = useState(() => localStorage.getItem('cvContent') || '');
@@ -360,6 +360,13 @@ ${extractedKeywords.join(', ')}`;
     }
   };
 
+  const handleNavClick = (page: Page) => {
+    setCurrentPage(page);
+    if (!isDesktop) {
+        setIsSidebarOpen(false);
+    }
+  };
+
   const renderPage = () => {
       switch(currentPage) {
           case 'landing':
@@ -420,25 +427,25 @@ ${extractedKeywords.join(', ')}`;
           </div>
           <ul className="sidebar-nav">
               <li className={currentPage === 'landing' ? 'active' : ''}>
-                  <button onClick={() => { setCurrentPage('landing'); setIsSidebarOpen(false); }}>
+                  <button onClick={() => handleNavClick('landing')}>
                       <HomeIcon />
                       <span>{t('menuHome')}</span>
                   </button>
               </li>
               <li className={currentPage === 'generator' ? 'active' : ''}>
-                  <button onClick={() => { setCurrentPage('generator'); setIsSidebarOpen(false); }}>
+                  <button onClick={() => handleNavClick('generator')}>
                       <FileTextIcon />
                       <span>{t('menuGenerator')}</span>
                   </button>
               </li>
               <li className={currentPage === 'jobs' ? 'active' : ''}>
-                  <button onClick={() => { setCurrentPage('jobs'); setIsSidebarOpen(false); }}>
+                  <button onClick={() => handleNavClick('jobs')}>
                       <BriefcaseIcon />
                       <span>{t('menuJobs')}</span>
                   </button>
               </li>
               <li className={currentPage === 'documents' ? 'active' : ''}>
-                  <button onClick={() => { setCurrentPage('documents'); setIsSidebarOpen(false); }}>
+                  <button onClick={() => handleNavClick('documents')}>
                       <UserIcon />
                       <span>{t('menuDocuments')}</span>
                   </button>
