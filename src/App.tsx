@@ -352,7 +352,7 @@ ${extractedKeywords.join(', ')}`;
 
   const getPageSubtitle = () => {
       switch (currentPage) {
-        case 'landing': return '';
+        case 'landing': return t('landingPageHeaderSubtitle');
         case 'generator': return t('appSubtitle');
         case 'jobs': return t('jobsListSubtitle');
         case 'documents': return t('myDocumentsSubtitle');
@@ -465,7 +465,10 @@ ${extractedKeywords.join(', ')}`;
                     <MenuIcon />
                 </Button>
                 <div className="page-title">
-                    <h1>{getPageTitle()}</h1>
+                    <h1>
+                        {getPageTitle()}
+                        {currentPage === 'landing' && <SparkIcon className="title-spark-icon" />}
+                    </h1>
                     <p className="app-subtitle">{getPageSubtitle()}</p>
                 </div>
             </div>

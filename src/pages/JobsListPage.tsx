@@ -519,6 +519,9 @@ ${jobPageContent}`;
                     </table>
                 </div>
             </Card>
+            <footer className="landing-footer">
+                <p>AI driven Transformational Excellence</p>
+            </footer>
         </>
     );
 };

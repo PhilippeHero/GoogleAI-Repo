@@ -236,6 +236,9 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
             />
             </Card>
         </Collapsible>
+        <footer className="landing-footer">
+            <p>AI driven Transformational Excellence</p>
+        </footer>
         </>
     );
 };
