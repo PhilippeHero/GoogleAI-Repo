@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import { GoogleGenAI, Type } from '@google/genai';
-import { useState, useRef, FC, CSSProperties, useEffect, ChangeEvent } from 'react';
+// FIX: Imported the full 'React' object to resolve errors where 'React' was being treated as a UMD global.
+import React, { useState, useRef, FC, CSSProperties, useEffect, ChangeEvent, useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { Packer, Document, Paragraph, TextRun } from 'docx';
 import saveAs from 'file-saver';
@@ -110,7 +111,60 @@ const ConfirmationModal: FC<{
   );
 };
 
+const DropdownMenu: FC<{
+  trigger: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ trigger, children }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Clone children to add onClick handler for closing the menu
+  const childrenWithCloseHandler = React.Children.map(children, child => {
+    if (React.isValidElement(child)) {
+      // FIX: Cast child.props to 'any' to resolve the error "Property 'onClick' does not exist on type 'unknown'".
+      const originalOnClick = (child.props as any).onClick;
+      return React.cloneElement(child as React.ReactElement<any>, {
+        onClick: (e: React.MouseEvent) => {
+          if (originalOnClick) {
+            originalOnClick(e);
+          }
+          setIsOpen(false);
+        },
+      });
+    }
+    return child;
+  });
+
+  return (
+    <div className="dropdown" ref={menuRef}>
+      <div onClick={() => setIsOpen(!isOpen)} className="dropdown-trigger">
+        {trigger}
+      </div>
+      {isOpen && (
+        <div className="dropdown-content">
+          {childrenWithCloseHandler}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 // --- Icon Components ---
+const HomeIcon: FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+);
+
 const SunIcon: FC<{ className?: string }> = ({ className }) => (
   <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="5"></circle>
@@ -156,6 +210,19 @@ const ChevronLeftIcon: FC<{ className?: string }> = ({ className }) => (
 const MenuIcon: FC<{ className?: string }> = ({ className }) => (
   <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
 );
+
+const MoreVerticalIcon: FC<{ className?: string, style?: CSSProperties }> = ({ className, style }) => (
+    <svg className={className} style={style} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+);
+
+const ExportIcon: FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+);
+
+const SortIcon: FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/></svg>
+);
+
 
 // --- App-specific Components ---
 type Job = {
@@ -297,9 +364,13 @@ const formatDate = (isoDate: string): string => {
   }
   try {
     const date = new Date(isoDate);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
+    // Add timezone offset to prevent date from shifting
+    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+    const correctDate = new Date(date.getTime() + userTimezoneOffset);
+
+    const day = String(correctDate.getDate()).padStart(2, '0');
+    const month = String(correctDate.getMonth() + 1).padStart(2, '0');
+    const year = correctDate.getFullYear();
     return `${day}/${month}/${year}`;
   } catch (e) {
     return isoDate; // Fallback to original string if something goes wrong
@@ -307,14 +378,61 @@ const formatDate = (isoDate: string): string => {
 };
 
 const JobsListPage: FC<{ t: (key: keyof typeof translations['EN']) => string }> = ({ t }) => {
+    type SortConfig = { key: keyof Job; direction: 'ascending' | 'descending' } | null;
+
     const [jobs, setJobs] = useState<Job[]>(initialJobs);
     const [jobUrl, setJobUrl] = useState('');
     const [isExtracting, setIsExtracting] = useState(false);
     const [extractionError, setExtractionError] = useState('');
-
     const [isJobModalOpen, setIsJobModalOpen] = useState(false);
     const [selectedJob, setSelectedJob] = useState<Partial<Job> | null>(null);
 
+    const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+    const [filterStartDate, setFilterStartDate] = useState('');
+    const [filterEndDate, setFilterEndDate] = useState('');
+
+    const sortedAndFilteredJobs = useMemo(() => {
+        let processableJobs = [...jobs];
+        
+        // Filtering
+        if (filterStartDate || filterEndDate) {
+            processableJobs = processableJobs.filter(job => {
+                const jobDate = job.posted;
+                if (filterStartDate && jobDate < filterStartDate) return false;
+                if (filterEndDate && jobDate > filterEndDate) return false;
+                return true;
+            });
+        }
+        
+        // Sorting
+        if (sortConfig !== null) {
+            processableJobs.sort((a, b) => {
+                const valA = a[sortConfig.key];
+                const valB = b[sortConfig.key];
+                let comparison = 0;
+                
+                if (typeof valA === 'string' && typeof valB === 'string') {
+                    comparison = valA.localeCompare(valB);
+                } else {
+                    if (valA < valB) comparison = -1;
+                    else if (valA > valB) comparison = 1;
+                }
+                
+                return sortConfig.direction === 'ascending' ? comparison : -comparison;
+            });
+        }
+
+        return processableJobs;
+    }, [jobs, sortConfig, filterStartDate, filterEndDate]);
+
+    const requestSort = (key: keyof Job) => {
+        let direction: 'ascending' | 'descending' = 'ascending';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+    
     // FIX: Refactored to a two-step process to reliably extract job data from a URL.
     // 1. Use `googleSearch` tool to retrieve text content related to the job URL.
     // 2. Use a second API call with `responseSchema` to extract structured JSON from the text.
@@ -430,6 +548,31 @@ ${jobPageContent}`;
         setJobs(jobs.filter(j => j.id !== jobId));
         handleCloseModal();
     };
+
+    const handleExport = () => {
+        const headers = [t('jobColumnTitle'), t('jobColumnCompany'), t('jobColumnLocation'), t('jobColumnDescription'), t('jobColumnUrl'), t('jobColumnPosted')];
+        const escapeCsv = (str: string) => `"${String(str || '').replace(/"/g, '""')}"`;
+
+        const csvContent = [
+            headers.join(','),
+            ...sortedAndFilteredJobs.map(job => [
+                escapeCsv(job.title),
+                escapeCsv(job.company),
+                escapeCsv(job.location),
+                escapeCsv(job.description),
+                escapeCsv(job.url),
+                escapeCsv(formatDate(job.posted)),
+            ].join(','))
+        ].join('\n');
+
+        const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+        saveAs(blob, 'jobs-export.xls');
+    };
+
+    const getSortClasses = (key: keyof Job) => {
+        if (!sortConfig || sortConfig.key !== key) return 'sortable-header';
+        return `sortable-header sorted-${sortConfig.direction}`;
+    };
     
     return (
         <>
@@ -466,22 +609,54 @@ ${jobPageContent}`;
             </Card>
 
             <Card className="jobs-list-card">
-                <h3 className="card-header">{t('jobsListTitle')}</h3>
+                <div className="card-header-wrapper">
+                  <h3 className="card-header">{t('jobsListTitle')}</h3>
+                  <div className="card-header-actions">
+                    <Button onClick={handleExport} variant="secondary" className="btn-icon" aria-label={t('exportButtonLabel')}>
+                      <ExportIcon />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="table-filters">
+                  <div className="form-group">
+                    <label htmlFor="startDate">{t('filterDateStart')}</label>
+                    <input type="date" id="startDate" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="input"/>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="endDate">{t('filterDateEnd')}</label>
+                    <input type="date" id="endDate" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="input"/>
+                  </div>
+                  <Button variant="secondary" className="btn-filter-clear" onClick={() => { setFilterStartDate(''); setFilterEndDate(''); }}>{t('clearFilterButton')}</Button>
+                </div>
+
                 <div className="table-responsive">
                     <table className="jobs-table">
                         <thead>
                             <tr>
-                                <th>{t('jobColumnTitle')}</th>
-                                <th>{t('jobColumnCompany')}</th>
-                                <th>{t('jobColumnLocation')}</th>
-                                <th style={{minWidth: '250px'}}>{t('jobColumnDescription')}</th>
-                                <th style={{minWidth: '200px'}}>{t('jobColumnUrl')}</th>
-                                <th>{t('jobColumnPosted')}</th>
+                                <th className={getSortClasses('title')} onClick={() => requestSort('title')}>
+                                  <div className="header-content"><span>{t('jobColumnTitle')}</span><SortIcon className="sort-icon" /></div>
+                                </th>
+                                <th className={getSortClasses('company')} onClick={() => requestSort('company')}>
+                                  <div className="header-content"><span>{t('jobColumnCompany')}</span><SortIcon className="sort-icon" /></div>
+                                </th>
+                                <th className={getSortClasses('location')} onClick={() => requestSort('location')}>
+                                  <div className="header-content"><span>{t('jobColumnLocation')}</span><SortIcon className="sort-icon" /></div>
+                                </th>
+                                <th style={{minWidth: '250px'}} className={getSortClasses('description')} onClick={() => requestSort('description')}>
+                                  <div className="header-content"><span>{t('jobColumnDescription')}</span><SortIcon className="sort-icon" /></div>
+                                </th>
+                                <th style={{minWidth: '200px'}} className={getSortClasses('url')} onClick={() => requestSort('url')}>
+                                  <div className="header-content"><span>{t('jobColumnUrl')}</span><SortIcon className="sort-icon" /></div>
+                                </th>
+                                <th className={getSortClasses('posted')} onClick={() => requestSort('posted')}>
+                                  <div className="header-content"><span>{t('jobColumnPosted')}</span><SortIcon className="sort-icon" /></div>
+                                </th>
                                 <th>{t('jobColumnActions')}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {jobs.map(job => (
+                            {sortedAndFilteredJobs.map(job => (
                                 <tr key={job.id}>
                                     <td>{job.title}</td>
                                     <td>{job.company}</td>
@@ -493,10 +668,12 @@ ${jobPageContent}`;
                                       </a>
                                     </td>
                                     <td>{formatDate(job.posted)}</td>
-                                    <td className="job-actions">
-                                      <Button onClick={() => handleOpenEditModal(job)} variant="secondary" className="btn-sm">
-                                        {t('editButton')}
-                                      </Button>
+                                    <td className="actions-cell">
+                                      <div className="actions-content">
+                                        <Button onClick={() => handleOpenEditModal(job)} variant="secondary" className="btn-sm">
+                                          {t('editButton')}
+                                        </Button>
+                                      </div>
                                     </td>
                                 </tr>
                             ))}
@@ -737,7 +914,8 @@ const MyDocumentsPage: FC<{
                                     <td>{getDocTypeName(doc.type)}</td>
                                     <td>{doc.fileName || '-'}</td>
                                     <td>{doc.lastUpdated ? formatDate(doc.lastUpdated) : '-'}</td>
-                                    <td className="job-actions">
+                                    <td className="actions-cell">
+                                      <div className="actions-content">
                                         <Button 
                                             onClick={() => handleDisplayDocument(doc)} 
                                             variant="secondary" 
@@ -746,14 +924,21 @@ const MyDocumentsPage: FC<{
                                         >
                                             {t('displayButton')}
                                         </Button>
-                                        <Button onClick={() => handleUploadClick(doc.id)} variant="secondary" className="btn-sm">{t('uploadButton')}</Button>
-                                        <Button 
-                                            variant="secondary" 
-                                            className="btn-sm btn-destructive" 
-                                            onClick={() => handleDeleteDocument(doc)}
+                                        <DropdownMenu
+                                            trigger={
+                                                <Button variant="secondary" className="btn-sm btn-icon" aria-label={t('moreOptionsButtonLabel')}>
+                                                    <MoreVerticalIcon style={{width: '1rem', height: '1rem'}}/>
+                                                </Button>
+                                            }
                                         >
-                                            {t('deleteButton')}
-                                        </Button>
+                                            <button className="dropdown-item" onClick={() => handleUploadClick(doc.id)}>
+                                                {t('uploadButton')}
+                                            </button>
+                                            <button className="dropdown-item dropdown-item-destructive" onClick={() => handleDeleteDocument(doc)}>
+                                                {t('deleteButton')}
+                                            </button>
+                                        </DropdownMenu>
+                                      </div>
                                     </td>
                                 </tr>
                             ))}
@@ -808,7 +993,46 @@ const SelectCvModal: FC<{
   );
 };
 
-type Page = 'generator' | 'jobs' | 'documents';
+type Page = 'landing' | 'generator' | 'jobs' | 'documents';
+
+const LandingPage: FC<{
+  t: (key: keyof typeof translations['EN']) => string;
+  setCurrentPage: (page: Page) => void;
+}> = ({ t, setCurrentPage }) => {
+  return (
+    <div className="landing-page-container">
+      <div className="hero-section">
+        <div className="hero-content">
+          <SparkIcon className="hero-spark-icon" />
+          <h1 className="hero-title">{t('landingTitle')}</h1>
+          <p className="hero-subtitle">{t('landingSubtitle')}</p>
+          <Button onClick={() => setCurrentPage('generator')} className="hero-cta">
+            {t('landingCtaButton')}
+          </Button>
+        </div>
+      </div>
+
+      <div className="features-grid">
+        <div className="feature-card large" onClick={() => setCurrentPage('generator')}>
+            <FileTextIcon />
+            <h3>{t('featureGeneratorTitle')}</h3>
+            <p>{t('featureGeneratorDescription')}</p>
+        </div>
+        <div className="feature-card" onClick={() => setCurrentPage('jobs')}>
+            <BriefcaseIcon />
+            <h3>{t('featureJobsTitle')}</h3>
+            <p>{t('featureJobsDescription')}</p>
+        </div>
+        <div className="feature-card" onClick={() => setCurrentPage('documents')}>
+            <UserIcon />
+            <h3>{t('featureDocumentsTitle')}</h3>
+            <p>{t('featureDocumentsDescription')}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 // --- Main Application ---
 
@@ -816,7 +1040,7 @@ function App() {
   const DESKTOP_BREAKPOINT = 1024;
   
   // Navigation State
-  const [currentPage, setCurrentPage] = useState<Page>('generator');
+  const [currentPage, setCurrentPage] = useState<Page>('landing');
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= DESKTOP_BREAKPOINT);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= DESKTOP_BREAKPOINT);
 
@@ -1155,6 +1379,7 @@ ${extractedKeywords.join(', ')}`;
 
   const getPageTitle = () => {
     switch (currentPage) {
+        case 'landing': return t('landingPageTitle');
         case 'generator': return t('appTitle');
         case 'jobs': return t('jobsListTitle');
         case 'documents': return t('myDocumentsTitle');
@@ -1164,6 +1389,7 @@ ${extractedKeywords.join(', ')}`;
 
   const getPageSubtitle = () => {
       switch (currentPage) {
+        case 'landing': return '';
         case 'generator': return t('appSubtitle');
         case 'jobs': return t('jobsListSubtitle');
         case 'documents': return t('myDocumentsSubtitle');
@@ -1195,13 +1421,19 @@ ${extractedKeywords.join(', ')}`;
       {!isDesktop && isSidebarOpen && <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)} />}
       
       <nav className={sidebarClasses}>
-          <div className="sidebar-header">
+          <div className="sidebar-header" onClick={() => setCurrentPage('landing')} role="button" tabIndex={0}>
             <div className="sidebar-title-container">
               <h1 className="sidebar-title">Pearl Labor</h1>
               <SparkIcon className="sidebar-spark-icon" />
             </div>
           </div>
           <ul className="sidebar-nav">
+              <li className={currentPage === 'landing' ? 'active' : ''}>
+                  <button onClick={() => setCurrentPage('landing')}>
+                      <HomeIcon />
+                      <span>{t('menuHome')}</span>
+                  </button>
+              </li>
               <li className={currentPage === 'generator' ? 'active' : ''}>
                   <button onClick={() => setCurrentPage('generator')}>
                       <FileTextIcon />
@@ -1258,6 +1490,7 @@ ${extractedKeywords.join(', ')}`;
           </header>
           
           <main className="main-content">
+            {currentPage === 'landing' && <LandingPage t={t} setCurrentPage={setCurrentPage} />}
             {currentPage === 'generator' && (
               <>
                 <p className="workflow-description">{t('workflowDescription')}</p>
