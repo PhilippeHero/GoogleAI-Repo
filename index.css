@@ -508,9 +508,6 @@ textarea {
   color: hsl(var(--muted-foreground));
 }
 
-.add-job-card {
-}
-
 .add-job-controls {
     display: flex;
     gap: 1rem;
@@ -519,6 +516,26 @@ textarea {
 .add-job-controls .input {
     flex-grow: 1;
 }
+
+.add-document-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.add-document-form .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex-grow: 1;
+    min-width: 200px;
+}
+
+.add-document-form .form-field:first-child {
+    flex-grow: 2;
+}
+
 
 .error-inline {
     font-size: 0.875rem;
@@ -657,6 +674,45 @@ textarea {
     font-size: 0.9rem;
 }
 
+/* Document Viewer Modal styles */
+.document-viewer-modal {
+    max-width: 90vw;
+    width: 1200px;
+    height: 90vh;
+    padding: 0;
+    text-align: left;
+    align-items: stretch;
+    flex-direction: column;
+}
+
+.document-viewer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid hsl(var(--border));
+    flex-shrink: 0;
+}
+
+.document-viewer-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.document-viewer-header .btn-icon {
+    width: 2rem;
+    height: 2rem;
+}
+
+.document-viewer-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    background-color: hsl(var(--secondary));
+}
 
 /* --- Responsive Design --- */
 @media (max-width: 1024px) {

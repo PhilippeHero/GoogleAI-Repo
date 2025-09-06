@@ -15,9 +15,9 @@ const Card: FC<{ children: React.ReactNode, className?: string }> = ({ children,
   <div className={`card ${className || ''}`}>{children}</div>
 );
 
-const Button: FC<{ children: React.ReactNode, onClick?: () => void, disabled?: boolean, variant?: 'primary' | 'secondary', className?: string, style?: CSSProperties }> = 
-({ children, onClick, disabled, variant = 'primary', className, style }) => (
-  <button onClick={onClick} disabled={disabled} className={`btn btn-${variant} ${className || ''}`} style={style}>
+const Button: FC<{ children: React.ReactNode, onClick?: () => void, disabled?: boolean, variant?: 'primary' | 'secondary', className?: string, style?: CSSProperties, 'aria-label'?: string }> = 
+({ children, onClick, disabled, variant = 'primary', className, style, 'aria-label': ariaLabel }) => (
+  <button onClick={onClick} disabled={disabled} className={`btn btn-${variant} ${className || ''}`} style={style} aria-label={ariaLabel}>
     {children}
   </button>
 );
@@ -162,6 +162,16 @@ type Job = {
   url: string;
 };
 
+type DocumentItem = {
+    id: string;
+    name: string; // The user-defined document name, e.g., "CV for Stark Industries"
+    type: string; // 'cv', 'coverLetter', etc.
+    fileName?: string;
+    fileContent?: string; // Data URL of the file
+    fileMimeType?: string; // Mime type of the file
+    lastUpdated?: string; // ISO String
+};
+
 type ExtractedJobData = Omit<Job, 'id'>;
 
 const getInitialDate = (daysAgo: number) => {
@@ -276,11 +286,14 @@ const JobModal: FC<{
 };
 
 const formatDate = (isoDate: string): string => {
-  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+  if (!isoDate || !/^\d{4}-\d{2}-\d{2}/.test(isoDate)) { // Adjusted regex to support ISO strings
     return 'N/A';
   }
   try {
-    const [year, month, day] = isoDate.split('-');
+    const date = new Date(isoDate);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
     return `${day}/${month}/${year}`;
   } catch (e) {
     return isoDate; // Fallback to original string if something goes wrong
@@ -489,29 +502,91 @@ ${jobPageContent}`;
     );
 };
 
-const MyDocumentsPage: FC<{ t: (key: keyof typeof translations['EN']) => string }> = ({ t }) => {
-    type DocumentItem = {
-        id: string;
-        name: string;
-        isCustom: boolean;
-        fileName?: string;
-        lastUpdated?: string; // ISO String
-    };
+const DocumentViewerModal: FC<{
+  doc: DocumentItem | null;
+  isOpen: boolean;
+  onClose: () => void;
+  t: (key: keyof typeof translations['EN']) => string;
+}> = ({ doc, isOpen, onClose, t }) => {
+  if (!isOpen || !doc || !doc.fileContent || !doc.fileMimeType) return null;
 
-    const initialDocumentItems: DocumentItem[] = [
-        { id: 'cv', name: 'docTypeCv', isCustom: false },
-        { id: 'competenceMatrix', name: 'docTypeCompetenceMatrix', isCustom: false },
-        { id: 'coverLetter', name: 'docTypeCoverLetter', isCustom: false },
-        { id: 'references', name: 'docTypeReferences', isCustom: false },
-        { id: 'other', name: 'docTypeOther', isCustom: false },
+  const renderContent = () => {
+    const mimeType = doc.fileMimeType!;
+    const content = doc.fileContent!;
+
+    if (mimeType.startsWith('image/')) {
+      return <img src={content} alt={doc.fileName} style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 100px)', display: 'block', margin: '0 auto' }} />;
+    }
+    if (mimeType === 'application/pdf') {
+      return <iframe src={content} style={{ width: '100%', height: 'calc(90vh - 100px)', border: 'none' }} title={doc.fileName}></iframe>;
+    }
+    if (mimeType.startsWith('text/')) {
+        try {
+            const base64Content = content.substring(content.indexOf(',') + 1);
+            const binaryString = atob(base64Content);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const decoder = new TextDecoder(); // defaults to utf-8
+            const textContent = decoder.decode(bytes);
+            return <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', height: '100%', overflowY: 'auto', margin: 0 }}>{textContent}</pre>;
+        } catch (e) {
+            console.error("Failed to decode text content:", e);
+            return <p>{t('errorPreviewingFile')}</p>
+        }
+    }
+    
+    return (
+        <div style={{ textAlign: 'center', padding: '2rem' }}>
+          <p>{t('previewNotAvailable')}</p>
+          <a href={content} download={doc.fileName}>
+            <Button>{t('downloadButton')}</Button>
+          </a>
+        </div>
+      );
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="doc-viewer-title">
+      <div className="modal-content document-viewer-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="document-viewer-header">
+            <h2 id="doc-viewer-title">{doc.name} ({doc.fileName})</h2>
+            <Button onClick={onClose} variant="secondary" className="btn-icon" aria-label={t('closeButton')}>
+                <span style={{fontSize: '1.5rem', lineHeight: '1'}}>&times;</span>
+            </Button>
+        </div>
+        <div className="document-viewer-content">
+            {renderContent()}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MyDocumentsPage: FC<{ t: (key: keyof typeof translations['EN']) => string }> = ({ t }) => {
+    const documentTypes = [
+        { id: 'cv', nameKey: 'docTypeCv' as const },
+        { id: 'competenceMatrix', nameKey: 'docTypeCompetenceMatrix' as const },
+        { id: 'coverLetter', nameKey: 'docTypeCoverLetter' as const },
+        { id: 'references', nameKey: 'docTypeReferences' as const },
+        { id: 'other', nameKey: 'docTypeOther' as const },
     ];
 
-    const [documents, setDocuments] = useState<DocumentItem[]>(initialDocumentItems);
+    const [documents, setDocuments] = useState<DocumentItem[]>(() => [
+        { id: 'doc-1', name: 'Standard CV', type: 'cv', fileName: 'my_cv_2024.pdf', lastUpdated: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+        { id: 'doc-2', name: 'Cover Letter for Stark Industries', type: 'coverLetter' },
+        { id: 'doc-3', name: 'Professional References', type: 'references', fileName: 'references.docx', lastUpdated: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()  },
+    ]);
+
     const [newDocumentName, setNewDocumentName] = useState('');
+    const [newDocumentType, setNewDocumentType] = useState('cv');
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
     const [docToDelete, setDocToDelete] = useState<DocumentItem | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [documentToUploadId, setDocumentToUploadId] = useState<string | null>(null);
+    const [docToDisplay, setDocToDisplay] = useState<DocumentItem | null>(null);
 
     const handleUploadClick = (docId: string) => {
         setDocumentToUploadId(docId);
@@ -521,26 +596,43 @@ const MyDocumentsPage: FC<{ t: (key: keyof typeof translations['EN']) => string 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file && documentToUploadId) {
-            setDocuments(docs => docs.map(doc => 
-                doc.id === documentToUploadId 
-                ? { ...doc, fileName: file.name, lastUpdated: new Date().toISOString() } 
-                : doc
-            ));
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const fileContent = e.target?.result as string;
+                setDocuments(docs => docs.map(doc =>
+                    doc.id === documentToUploadId
+                    ? {
+                        ...doc,
+                        fileName: file.name,
+                        fileContent: fileContent,
+                        fileMimeType: file.type,
+                        lastUpdated: new Date().toISOString()
+                      }
+                    : doc
+                ));
+            };
+            reader.readAsDataURL(file);
         }
         setDocumentToUploadId(null);
         if(event.target) event.target.value = ''; // Reset file input
     };
-
+    
+    const handleDisplayDocument = (doc: DocumentItem) => {
+        if (doc.fileContent) {
+            setDocToDisplay(doc);
+        }
+    };
 
     const handleAddDocument = () => {
         if (!newDocumentName.trim()) return;
         const newDoc: DocumentItem = {
             id: `doc-${Date.now()}`,
             name: newDocumentName,
-            isCustom: true,
+            type: newDocumentType,
         };
-        setDocuments([...documents, newDoc]);
+        setDocuments([newDoc, ...documents]);
         setNewDocumentName('');
+        setNewDocumentType('cv');
     };
     
     const handleDeleteDocument = (doc: DocumentItem) => {
@@ -555,9 +647,20 @@ const MyDocumentsPage: FC<{ t: (key: keyof typeof translations['EN']) => string 
         setIsConfirmDeleteOpen(false);
         setDocToDelete(null);
     };
+    
+    const getDocTypeName = (typeId: string) => {
+        const type = documentTypes.find(dt => dt.id === typeId);
+        return type ? t(type.nameKey) : t('docTypeOther');
+    };
 
     return (
         <>
+            <DocumentViewerModal
+                doc={docToDisplay}
+                isOpen={docToDisplay !== null}
+                onClose={() => setDocToDisplay(null)}
+                t={t}
+            />
             <ConfirmationModal
                 isOpen={isConfirmDeleteOpen}
                 onClose={() => setIsConfirmDeleteOpen(false)}
@@ -573,20 +676,37 @@ const MyDocumentsPage: FC<{ t: (key: keyof typeof translations['EN']) => string 
                 ref={fileInputRef}
                 style={{ display: 'none' }}
                 onChange={handleFileChange}
-                accept=".pdf,.doc,.docx,.txt,.md"
+                accept=".pdf,.doc,.docx,.txt,.md,image/*"
             />
 
             <Card className="add-job-card">
                 <h3 className="card-header">{t('addDocumentTitle')}</h3>
-                <div className="add-job-controls">
-                    <input 
-                        type="text" 
-                        value={newDocumentName}
-                        onChange={e => setNewDocumentName(e.target.value)}
-                        placeholder={t('documentNamePlaceholder')}
-                        className="input"
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddDocument();}}
-                    />
+                <div className="add-document-form">
+                    <div className="form-field">
+                        <label htmlFor="newDocName">{t('documentNameLabel')}</label>
+                        <input 
+                            id="newDocName"
+                            type="text" 
+                            value={newDocumentName}
+                            onChange={e => setNewDocumentName(e.target.value)}
+                            placeholder={t('documentNamePlaceholder')}
+                            className="input"
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleAddDocument();}}
+                        />
+                    </div>
+                    <div className="form-field">
+                        <label htmlFor="newDocType">{t('documentTypeLabel')}</label>
+                        <select
+                            id="newDocType"
+                            value={newDocumentType}
+                            onChange={(e) => setNewDocumentType(e.target.value)}
+                            className="input"
+                        >
+                            {documentTypes.map(type => (
+                                <option key={type.id} value={type.id}>{t(type.nameKey)}</option>
+                            ))}
+                        </select>
+                    </div>
                     <Button onClick={handleAddDocument}>
                         {t('addDocumentButton')}
                     </Button>
@@ -599,6 +719,7 @@ const MyDocumentsPage: FC<{ t: (key: keyof typeof translations['EN']) => string 
                     <table className="jobs-table">
                         <thead>
                             <tr>
+                                <th>{t('docNameColumn')}</th>
                                 <th>{t('docTypeColumn')}</th>
                                 <th>{t('docFileNameColumn')}</th>
                                 <th>{t('docLastUpdatedColumn')}</th>
@@ -608,10 +729,19 @@ const MyDocumentsPage: FC<{ t: (key: keyof typeof translations['EN']) => string 
                         <tbody>
                             {documents.map(doc => (
                                 <tr key={doc.id}>
-                                    <td>{doc.isCustom ? doc.name : t(doc.name as keyof typeof translations['EN'])}</td>
+                                    <td>{doc.name}</td>
+                                    <td>{getDocTypeName(doc.type)}</td>
                                     <td>{doc.fileName || '-'}</td>
-                                    <td>{doc.lastUpdated ? formatDate(doc.lastUpdated.split('T')[0]) : '-'}</td>
+                                    <td>{doc.lastUpdated ? formatDate(doc.lastUpdated) : '-'}</td>
                                     <td className="job-actions">
+                                        <Button 
+                                            onClick={() => handleDisplayDocument(doc)} 
+                                            variant="secondary" 
+                                            className="btn-sm"
+                                            disabled={!doc.fileName}
+                                        >
+                                            {t('displayButton')}
+                                        </Button>
                                         <Button onClick={() => handleUploadClick(doc.id)} variant="secondary" className="btn-sm">{t('uploadButton')}</Button>
                                         <Button 
                                             variant="secondary" 
