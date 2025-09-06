@@ -18,6 +18,12 @@ export const LandingPage: FC<LandingPageProps> = ({ t, setCurrentPage }) => {
   return (
     <div className="landing-page-container">
       <div className="hero-section">
+        <div className="hero-sparks" aria-hidden="true">
+            <SparkIcon />
+            <SparkIcon />
+            <SparkIcon />
+            <SparkIcon />
+        </div>
         <div className="hero-content">
           <SparkIcon className="hero-spark-icon" />
           <h1 className="hero-title">{t('landingTitle')}</h1>
@@ -45,6 +51,10 @@ export const LandingPage: FC<LandingPageProps> = ({ t, setCurrentPage }) => {
             <p>{t('featureDocumentsDescription')}</p>
         </div>
       </div>
+      
+      <footer className="landing-footer">
+        <p>AI driven Transformational Excellence</p>
+      </footer>
     </div>
   );
 };
