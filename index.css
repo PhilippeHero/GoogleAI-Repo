@@ -227,6 +227,19 @@ body {
   padding-right: 2rem;
 }
 
+/* Custom styles for buttons in header to match other controls */
+.header-controls .btn:not(.btn-icon) {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 400; /* Match font-weight of select/input */
+}
+
+.header-controls .btn:not(.btn-icon) svg {
+  width: 1.125rem; /* 18px */
+  height: 1.125rem;
+  stroke-width: 1.5;
+}
+
 h1 {
   font-size: 1.5em;
   color: hsl(var(--primary));
