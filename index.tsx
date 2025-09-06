@@ -8,6 +8,12 @@ import ReactDOM from 'react-dom/client';
 import { Packer, Document, Paragraph, TextRun } from 'docx';
 import saveAs from 'file-saver';
 import { translations, LanguageCode } from './translations';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker
+// Use the version from the loaded library to avoid mismatches
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.mjs`;
+
 
 // --- UI Components (Styled with CSS to mimic SHADCN) ---
 
@@ -565,7 +571,11 @@ const DocumentViewerModal: FC<{
   );
 };
 
-const MyDocumentsPage: FC<{ t: (key: keyof typeof translations['EN']) => string }> = ({ t }) => {
+const MyDocumentsPage: FC<{
+    t: (key: keyof typeof translations['EN']) => string;
+    documents: DocumentItem[];
+    setDocuments: React.Dispatch<React.SetStateAction<DocumentItem[]>>;
+}> = ({ t, documents, setDocuments }) => {
     const documentTypes = [
         { id: 'cv', nameKey: 'docTypeCv' as const },
         { id: 'competenceMatrix', nameKey: 'docTypeCompetenceMatrix' as const },
@@ -573,12 +583,6 @@ const MyDocumentsPage: FC<{ t: (key: keyof typeof translations['EN']) => string 
         { id: 'references', nameKey: 'docTypeReferences' as const },
         { id: 'other', nameKey: 'docTypeOther' as const },
     ];
-
-    const [documents, setDocuments] = useState<DocumentItem[]>(() => [
-        { id: 'doc-1', name: 'Standard CV', type: 'cv', fileName: 'my_cv_2024.pdf', lastUpdated: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
-        { id: 'doc-2', name: 'Cover Letter for Stark Industries', type: 'coverLetter' },
-        { id: 'doc-3', name: 'Professional References', type: 'references', fileName: 'references.docx', lastUpdated: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()  },
-    ]);
 
     const [newDocumentName, setNewDocumentName] = useState('');
     const [newDocumentType, setNewDocumentType] = useState('cv');
@@ -762,6 +766,48 @@ const MyDocumentsPage: FC<{ t: (key: keyof typeof translations['EN']) => string 
 };
 
 
+const SelectCvModal: FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onSelect: (doc: DocumentItem) => void;
+  documents: DocumentItem[];
+  t: (key: keyof typeof translations['EN']) => string;
+}> = ({ isOpen, onClose, onSelect, documents, t }) => {
+  if (!isOpen) return null;
+
+  const selectableCVs = documents.filter(doc => doc.type === 'cv' && doc.fileContent && doc.fileName);
+
+  const handleSelect = (doc: DocumentItem) => {
+      onSelect(doc);
+      onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="select-cv-title">
+      <div className="modal-content selection-modal" onClick={(e) => e.stopPropagation()}>
+        <h2 id="select-cv-title">{t('selectCvTitle')}</h2>
+        {selectableCVs.length > 0 ? (
+            <ul className="selection-list">
+                {selectableCVs.map(doc => (
+                    <li key={doc.id}>
+                        <button onClick={() => handleSelect(doc)}>
+                            <span className="selection-list-name">{doc.name}</span>
+                            <span className="selection-list-filename">{doc.fileName}</span>
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        ) : (
+            <p>{t('noCvsAvailable')}</p>
+        )}
+        <div className="modal-actions">
+          <Button onClick={onClose} variant="secondary">{t('cancelButton')}</Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 type Page = 'generator' | 'jobs' | 'documents';
 
 // --- Main Application ---
@@ -784,6 +830,7 @@ function App() {
   const [jobDescriptionContent, setJobDescriptionContent] = useState(() => localStorage.getItem('jobDescriptionContent') || '');
   
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState('');
   
   const [keywords, setKeywords] = useState<string[]>(() => JSON.parse(localStorage.getItem('keywords') || '[]'));
@@ -795,6 +842,14 @@ function App() {
 
   const cvUploadRef = useRef<HTMLInputElement>(null);
   const jobUploadRef = useRef<HTMLInputElement>(null);
+
+  // Shared State
+  const [documents, setDocuments] = useState<DocumentItem[]>(() => [
+    { id: 'doc-1', name: 'Standard CV', type: 'cv', fileName: 'my_cv_2024.pdf', lastUpdated: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+    { id: 'doc-2', name: 'Cover Letter for Stark Industries', type: 'coverLetter' },
+    { id: 'doc-3', name: 'Professional References', type: 'references', fileName: 'references.docx', lastUpdated: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()  },
+  ]);
+  const [isSelectCvModalOpen, setIsSelectCvModalOpen] = useState(false);
 
   const t = (key: keyof typeof translations['EN']) => {
     return translations[uiLanguage][key] || translations['EN'][key];
@@ -841,16 +896,98 @@ function App() {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<string>>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<string>>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setter(e.target?.result as string);
-      };
-      reader.readAsText(file);
+    if (!file) return;
+
+    setError('');
+    setter(''); // Clear previous content on new upload
+
+    try {
+        if (file.type.startsWith('text/') || file.name.endsWith('.md')) {
+            const textContent = await file.text();
+            setter(textContent);
+        } else if (file.type === 'application/pdf') {
+            setLoadingMessage(t('extractingPdfText'));
+            setIsLoading(true);
+            
+            const arrayBuffer = await file.arrayBuffer();
+
+            const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+            const pdf = await loadingTask.promise;
+            
+            let fullText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => ('str' in item ? item.str : '')).join(' ');
+                fullText += pageText + '\n';
+            }
+            setter(fullText.trim());
+        } else {
+            throw new Error(`Unsupported file type: ${file.type || 'unknown'}`);
+        }
+    } catch (e) {
+        console.error("Failed to extract content from uploaded file:", e);
+        setError(t('errorParsingFile'));
+    } finally {
+        setIsLoading(false);
+        setLoadingMessage('');
     }
-    event.target.value = ''; // Reset file input
+    
+    if(event.target) event.target.value = ''; // Reset file input to allow re-uploading the same file
+  };
+  
+  const handleSelectCv = async (doc: DocumentItem) => {
+    if (!doc.fileContent || !doc.fileMimeType) return;
+    setError('');
+
+    try {
+        if (doc.fileMimeType.startsWith('text/')) {
+            const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
+            const binaryString = atob(base64Content);
+            const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+            const decoder = new TextDecoder();
+            const textContent = decoder.decode(bytes);
+            setCvContent(textContent);
+        } 
+        else if (doc.fileMimeType === 'application/pdf') {
+            setLoadingMessage(t('extractingPdfText'));
+            setIsLoading(true);
+            
+            const pdfData = atob(doc.fileContent.substring(doc.fileContent.indexOf(',') + 1));
+            const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+            const pdf = await loadingTask.promise;
+            
+            let fullText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => ('str' in item ? item.str : '')).join(' ');
+                fullText += pageText + '\n';
+            }
+            setCvContent(fullText.trim());
+        }
+        else {
+             // Fallback for other types like .md if mime type isn't set as text/*
+            const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
+            const binaryString = atob(base64Content);
+            const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+            const decoder = new TextDecoder();
+            const textContent = decoder.decode(bytes);
+
+            if (textContent.length > 0 && !textContent.startsWith('%PDF-')) { // Basic check to avoid showing PDF binary as text
+                 setCvContent(textContent);
+            } else {
+                 throw new Error("Unsupported file type for text extraction.");
+            }
+        }
+    } catch (e) {
+        console.error("Failed to extract content from selected file:", e);
+        setError(t('errorParsingFile'));
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   const generateContent = async () => {
@@ -861,7 +998,8 @@ function App() {
     
     setIsInputOpen(false);
     setIsOutputOpen(true);
-
+    
+    setLoadingMessage(''); // Reset loading message
     setIsLoading(true);
     setError('');
     setKeywords([]);
@@ -1046,7 +1184,14 @@ ${extractedKeywords.join(', ')}`;
 
   return (
     <>
-      {isLoading && <Modal message={getModalMessage()} footerText={t('modalFooterText')} />}
+      {isLoading && <Modal message={loadingMessage || getModalMessage()} footerText={t('modalFooterText')} />}
+      <SelectCvModal
+        isOpen={isSelectCvModalOpen}
+        onClose={() => setIsSelectCvModalOpen(false)}
+        onSelect={handleSelectCv}
+        documents={documents}
+        t={t}
+      />
       {!isDesktop && isSidebarOpen && <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)} />}
       
       <nav className={sidebarClasses}>
@@ -1122,6 +1267,7 @@ ${extractedKeywords.join(', ')}`;
                         <h3 className="card-header">{t('cvHeader')}</h3>
                         <div className="card-header-actions">
                           {cvContent && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
+                          <Button variant="secondary" onClick={() => setIsSelectCvModalOpen(true)} className="btn-sm">{t('selectFileButton')}</Button>
                           <Button variant="secondary" onClick={() => cvUploadRef.current?.click()} className="btn-sm">{t('uploadFileButton')}</Button>
                           {cvContent && <Button variant="secondary" onClick={() => setCvContent('')} className="btn-sm">{t('clearButton')}</Button>}
                         </div>
@@ -1131,7 +1277,7 @@ ${extractedKeywords.join(', ')}`;
                       onChange={(e) => setCvContent(e.target.value)}
                       placeholder={t('cvPlaceholder')}
                     />
-                    <input type="file" ref={cvUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setCvContent)} accept=".txt,.md" />
+                    <input type="file" ref={cvUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setCvContent)} accept=".txt,.md,.pdf" />
                   </Card>
                   <Card>
                     <div className="card-header-wrapper">
@@ -1147,7 +1293,7 @@ ${extractedKeywords.join(', ')}`;
                       onChange={(e) => setJobDescriptionContent(e.target.value)}
                       placeholder={t('jobDescriptionPlaceholder')}
                     />
-                    <input type="file" ref={jobUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setJobDescriptionContent)} accept=".txt,.md" />
+                    <input type="file" ref={jobUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setJobDescriptionContent)} accept=".txt,.md,.pdf" />
                   </Card>
                 </Collapsible>
                 
@@ -1247,7 +1393,7 @@ ${extractedKeywords.join(', ')}`;
               </>
             )}
             {currentPage === 'jobs' && <JobsListPage t={t} />}
-            {currentPage === 'documents' && <MyDocumentsPage t={t} />}
+            {currentPage === 'documents' && <MyDocumentsPage t={t} documents={documents} setDocuments={setDocuments} />}
           </main>
           
           {error && <div className="error" role="alert">{error}</div>}

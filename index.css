@@ -1,6 +1,6 @@
 :root {
   --radius: 0.5rem;
-  --sidebar-width: 16rem;
+  --sidebar-width: 18rem;
 }
 
 [data-theme='light'] {
@@ -673,6 +673,68 @@ textarea {
     color: hsl(var(--muted-foreground));
     font-size: 0.9rem;
 }
+
+/* Selection Modal styles */
+.modal-content.selection-modal {
+    max-width: 500px;
+    text-align: left;
+    align-items: stretch;
+}
+
+.selection-modal h2 {
+    margin-top: 0;
+    color: hsl(var(--card-foreground));
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.selection-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem 0;
+    max-height: 50vh;
+    overflow-y: auto;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+}
+
+.selection-list li:not(:last-child) {
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.selection-list button {
+    width: 100%;
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 1rem;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-family: inherit;
+    color: hsl(var(--foreground));
+}
+
+.selection-list button:hover {
+    background-color: hsl(var(--secondary));
+}
+
+.selection-list-name {
+    font-weight: 600;
+}
+
+.selection-list-filename {
+    font-size: 0.8rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.selection-modal p {
+    color: hsl(var(--muted-foreground));
+    text-align: center;
+    padding: 2rem 0;
+}
+
 
 /* Document Viewer Modal styles */
 .document-viewer-modal {
