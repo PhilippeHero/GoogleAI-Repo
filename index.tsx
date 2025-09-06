@@ -139,6 +139,10 @@ const BriefcaseIcon: FC<{ className?: string }> = ({ className }) => (
   <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
 );
 
+const UserIcon: FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+);
+
 const ChevronLeftIcon: FC<{ className?: string }> = ({ className }) => (
   <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
 );
@@ -485,7 +489,150 @@ ${jobPageContent}`;
     );
 };
 
-type Page = 'generator' | 'jobs';
+const MyDocumentsPage: FC<{ t: (key: keyof typeof translations['EN']) => string }> = ({ t }) => {
+    type DocumentItem = {
+        id: string;
+        name: string;
+        isCustom: boolean;
+        fileName?: string;
+        lastUpdated?: string; // ISO String
+    };
+
+    const initialDocumentItems: DocumentItem[] = [
+        { id: 'cv', name: 'docTypeCv', isCustom: false },
+        { id: 'competenceMatrix', name: 'docTypeCompetenceMatrix', isCustom: false },
+        { id: 'coverLetter', name: 'docTypeCoverLetter', isCustom: false },
+        { id: 'references', name: 'docTypeReferences', isCustom: false },
+        { id: 'other', name: 'docTypeOther', isCustom: false },
+    ];
+
+    const [documents, setDocuments] = useState<DocumentItem[]>(initialDocumentItems);
+    const [newDocumentName, setNewDocumentName] = useState('');
+    const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+    const [docToDelete, setDocToDelete] = useState<DocumentItem | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [documentToUploadId, setDocumentToUploadId] = useState<string | null>(null);
+
+    const handleUploadClick = (docId: string) => {
+        setDocumentToUploadId(docId);
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file && documentToUploadId) {
+            setDocuments(docs => docs.map(doc => 
+                doc.id === documentToUploadId 
+                ? { ...doc, fileName: file.name, lastUpdated: new Date().toISOString() } 
+                : doc
+            ));
+        }
+        setDocumentToUploadId(null);
+        if(event.target) event.target.value = ''; // Reset file input
+    };
+
+
+    const handleAddDocument = () => {
+        if (!newDocumentName.trim()) return;
+        const newDoc: DocumentItem = {
+            id: `doc-${Date.now()}`,
+            name: newDocumentName,
+            isCustom: true,
+        };
+        setDocuments([...documents, newDoc]);
+        setNewDocumentName('');
+    };
+    
+    const handleDeleteDocument = (doc: DocumentItem) => {
+        setDocToDelete(doc);
+        setIsConfirmDeleteOpen(true);
+    };
+
+    const handleConfirmDelete = () => {
+        if (docToDelete) {
+            setDocuments(documents.filter(d => d.id !== docToDelete.id));
+        }
+        setIsConfirmDeleteOpen(false);
+        setDocToDelete(null);
+    };
+
+    return (
+        <>
+            <ConfirmationModal
+                isOpen={isConfirmDeleteOpen}
+                onClose={() => setIsConfirmDeleteOpen(false)}
+                onConfirm={handleConfirmDelete}
+                title={t('deleteDocumentConfirmationTitle')}
+                t={t}
+            >
+                <p>{t('deleteDocumentConfirmation')}</p>
+            </ConfirmationModal>
+            
+            <input 
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+                accept=".pdf,.doc,.docx,.txt,.md"
+            />
+
+            <Card className="add-job-card">
+                <h3 className="card-header">{t('addDocumentTitle')}</h3>
+                <div className="add-job-controls">
+                    <input 
+                        type="text" 
+                        value={newDocumentName}
+                        onChange={e => setNewDocumentName(e.target.value)}
+                        placeholder={t('documentNamePlaceholder')}
+                        className="input"
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddDocument();}}
+                    />
+                    <Button onClick={handleAddDocument}>
+                        {t('addDocumentButton')}
+                    </Button>
+                </div>
+            </Card>
+
+            <Card className="documents-list-card">
+                <h3 className="card-header">{t('myDocumentsListTitle')}</h3>
+                <div className="table-responsive">
+                    <table className="jobs-table">
+                        <thead>
+                            <tr>
+                                <th>{t('docTypeColumn')}</th>
+                                <th>{t('docFileNameColumn')}</th>
+                                <th>{t('docLastUpdatedColumn')}</th>
+                                <th>{t('docActionsColumn')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {documents.map(doc => (
+                                <tr key={doc.id}>
+                                    <td>{doc.isCustom ? doc.name : t(doc.name as keyof typeof translations['EN'])}</td>
+                                    <td>{doc.fileName || '-'}</td>
+                                    <td>{doc.lastUpdated ? formatDate(doc.lastUpdated.split('T')[0]) : '-'}</td>
+                                    <td className="job-actions">
+                                        <Button onClick={() => handleUploadClick(doc.id)} variant="secondary" className="btn-sm">{t('uploadButton')}</Button>
+                                        <Button 
+                                            variant="secondary" 
+                                            className="btn-sm btn-destructive" 
+                                            onClick={() => handleDeleteDocument(doc)}
+                                        >
+                                            {t('deleteButton')}
+                                        </Button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+        </>
+    );
+};
+
+
+type Page = 'generator' | 'jobs' | 'documents';
 
 // --- Main Application ---
 
@@ -738,6 +885,24 @@ ${extractedKeywords.join(', ')}`;
     return `${t('generatingModalMessage')} ${maxWords} ${t('words')} ${t('in')} ${translatedLanguage}, ${t('in')} ${translatedOutputFormat} ${t('format')}...`;
   };
 
+  const getPageTitle = () => {
+    switch (currentPage) {
+        case 'generator': return t('appTitle');
+        case 'jobs': return t('jobsListTitle');
+        case 'documents': return t('myDocumentsTitle');
+        default: return '';
+    }
+  };
+
+  const getPageSubtitle = () => {
+      switch (currentPage) {
+        case 'generator': return t('appSubtitle');
+        case 'jobs': return t('jobsListSubtitle');
+        case 'documents': return t('myDocumentsSubtitle');
+        default: return '';
+    }
+  };
+
   const sidebarClasses = [
     'sidebar',
     isSidebarOpen ? 'open' : '',
@@ -774,6 +939,12 @@ ${extractedKeywords.join(', ')}`;
                       <span>{t('menuJobs')}</span>
                   </button>
               </li>
+              <li className={currentPage === 'documents' ? 'active' : ''}>
+                  <button onClick={() => setCurrentPage('documents')}>
+                      <UserIcon />
+                      <span>{t('menuDocuments')}</span>
+                  </button>
+              </li>
           </ul>
       </nav>
       
@@ -789,8 +960,8 @@ ${extractedKeywords.join(', ')}`;
                     <MenuIcon />
                 </Button>
                 <div className="page-title">
-                    <h1>{currentPage === 'generator' ? t('appTitle') : t('jobsListTitle')}</h1>
-                    <p className="app-subtitle">{currentPage === 'generator' ? t('appSubtitle') : t('jobsListSubtitle')}</p>
+                    <h1>{getPageTitle()}</h1>
+                    <p className="app-subtitle">{getPageSubtitle()}</p>
                 </div>
             </div>
             <div className="header-controls">
@@ -946,6 +1117,7 @@ ${extractedKeywords.join(', ')}`;
               </>
             )}
             {currentPage === 'jobs' && <JobsListPage t={t} />}
+            {currentPage === 'documents' && <MyDocumentsPage t={t} />}
           </main>
           
           {error && <div className="error" role="alert">{error}</div>}

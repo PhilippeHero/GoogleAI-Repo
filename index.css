@@ -565,7 +565,7 @@ textarea {
     width: 100%;
 }
 
-.jobs-list-card {
+.jobs-list-card, .documents-list-card {
   width: 100%;
 }
 
@@ -581,15 +581,13 @@ textarea {
     border-collapse: collapse;
     text-align: left;
     font-size: 0.9rem;
-    table-layout: fixed;
+    table-layout: fixed; /* Use fixed layout for predictable column sizing */
 }
 
 .jobs-table th, .jobs-table td {
     padding: 0.75rem 1rem;
     border-bottom: 1px solid hsl(var(--border));
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    word-break: break-word; /* Allow long words to break and wrap */
 }
 
 .jobs-table .truncate-text {
@@ -597,6 +595,17 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 250px; /* Give a max-width to truncated text */
+}
+
+.jobs-table th:nth-child(4) .truncate-text,
+.jobs-table td:nth-child(4) .truncate-text {
+    max-width: 250px;
+}
+
+.jobs-table th:nth-child(5) .truncate-text,
+.jobs-table td:nth-child(5) .truncate-text {
+    max-width: 200px;
 }
 
 .jobs-table a.truncate-text {
@@ -623,7 +632,9 @@ textarea {
 
 .jobs-table .job-actions {
   white-space: nowrap;
-  width: 1px;
+  width: 1%;
+  display: flex;
+  gap: 0.5rem;
 }
 
 /* Confirmation Modal styles */
