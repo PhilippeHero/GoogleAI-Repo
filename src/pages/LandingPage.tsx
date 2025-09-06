@@ -6,7 +6,7 @@ import React, { FC } from 'react';
 import { translations } from '../../translations';
 import { Page } from '../types';
 import { Button } from '../components/ui';
-import { SparkIcon, FileTextIcon, BriefcaseIcon, UserIcon } from '../components/icons';
+import { SparkIcon, FileTextIcon, BriefcaseIcon, UserIcon, RocketIcon } from '../components/icons';
 
 
 type LandingPageProps = {
@@ -29,6 +29,7 @@ export const LandingPage: FC<LandingPageProps> = ({ t, setCurrentPage }) => {
           <h1 className="hero-title">{t('landingTitle')}</h1>
           <p className="hero-subtitle">{t('landingSubtitle')}</p>
           <Button onClick={() => setCurrentPage('generator')} className="hero-cta">
+            <RocketIcon />
             {t('landingCtaButton')}
           </Button>
         </div>

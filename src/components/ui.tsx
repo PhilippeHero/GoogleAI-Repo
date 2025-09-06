@@ -4,6 +4,7 @@
 */
 import React, { useState, useRef, FC, CSSProperties, useEffect, ChangeEvent } from 'react';
 import { translations } from '../../translations';
+import { PlusIcon, MinusIcon } from './icons';
 
 export const Card: FC<{ children: React.ReactNode, className?: string }> = ({ children, className }) => (
   <div className={`card ${className || ''}`}>{children}</div>
@@ -49,7 +50,7 @@ export const Collapsible: FC<{ title: string, children: React.ReactNode, isOpen:
         aria-expanded={isOpen}
       >
         <h2>{title}</h2>
-        <span className={`collapsible-chevron ${isOpen ? 'open' : ''}`} aria-hidden="true">▼</span>
+        {isOpen ? <MinusIcon className="collapsible-icon" /> : <PlusIcon className="collapsible-icon" />}
       </div>
       {isOpen && (
         <div className="collapsible-content">

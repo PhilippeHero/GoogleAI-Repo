@@ -434,7 +434,7 @@ ${jobPageContent}`;
                     <Button onClick={handleAddJob} disabled={isExtracting}>
                         {isExtracting ? (
                             <>
-                                <span className="spinner" style={{width: '1rem', height: '1rem', marginRight: '0.5rem', borderWidth: '2px'}}/>
+                                <span className="spinner" style={{width: '1rem', height: '1rem', borderWidth: '2px'}}/>
                                 {t('addingButton')}
                             </>
                         ) : t('addButton')}

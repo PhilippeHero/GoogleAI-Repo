@@ -8,6 +8,7 @@ import saveAs from 'file-saver';
 import { translations } from '../../translations';
 import { DocumentItem } from '../types';
 import { Collapsible, Card, Button, Textarea } from '../components/ui';
+import { RocketIcon } from '../components/icons';
 
 type GeneratorPageProps = {
     t: (key: keyof typeof translations['EN']) => string;
@@ -145,6 +146,7 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
         <Card>
             <div className="generation-controls-wrapper">
             <Button onClick={handleGenerateClick} disabled={isLoading || !cvContent || !jobDescriptionContent}>
+                <RocketIcon />
                 {t('generateButton')}
             </Button>
             <div className="settings-options">
