@@ -17,10 +17,10 @@ import { auth } from './firebase';
 
 import { translations, LanguageCode } from '../translations';
 import { Page, DocumentItem } from './types';
-import { Button, Modal } from './components/ui';
+import { Button, Modal, DropdownMenu } from './components/ui';
 import { AuthModal } from './components/AuthModal';
 import { SelectCvModal } from './components/SelectCvModal';
-import { HomeIcon, SunIcon, MoonIcon, SparkIcon, FileTextIcon, BriefcaseIcon, UserIcon, MenuIcon, LogInIcon, LogOutIcon } from './components/icons';
+import { HomeIcon, SunIcon, MoonIcon, SparkIcon, FileTextIcon, BriefcaseIcon, UserIcon, MenuIcon, LogInIcon, LogOutIcon, UserCircleIcon } from './components/icons';
 import { LandingPage } from './pages/LandingPage';
 import { GeneratorPage } from './pages/GeneratorPage';
 import { JobsListPage } from './pages/JobsListPage';
@@ -519,10 +519,26 @@ ${extractedKeywords.join(', ')}`;
                       <Button onClick={toggleTheme} variant="secondary" className="btn-icon" aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>
                           {theme === 'light' ? <MoonIcon /> : <SunIcon />}
                       </Button>
-                      {isAuthenticated ? (
-                          <Button onClick={handleLogout} variant="secondary">
-                              <LogOutIcon /> {t('logoutButton')}
-                          </Button>
+                      {isAuthenticated && user ? (
+                          <DropdownMenu trigger={
+                              <button className="user-menu-trigger" aria-label="Open user menu">
+                                  <UserCircleIcon className="user-menu-icon" />
+                              </button>
+                          }>
+                              <div className="dropdown-header">
+                                  <div className="dropdown-user-info">
+                                      {user.displayName && <span className="dropdown-user-name">{user.displayName}</span>}
+                                      {user.email && <span className="dropdown-user-email">{user.email}</span>}
+                                  </div>
+                              </div>
+                              <div className="dropdown-divider" />
+                              <button className="dropdown-item">
+                                  <UserIcon /> {t('manageProfileButton')}
+                              </button>
+                              <button onClick={handleLogout} className="dropdown-item dropdown-item-destructive">
+                                  <LogOutIcon /> {t('logoutButton')}
+                              </button>
+                          </DropdownMenu>
                       ) : (
                           <Button onClick={() => setIsAuthModalOpen(true)} variant="secondary">
                               <LogInIcon /> {t('loginRegisterButton')}

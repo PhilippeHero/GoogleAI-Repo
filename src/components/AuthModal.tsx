@@ -107,9 +107,20 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
             }
         }
     } else { // signup mode
+        const firstName = formData.get('firstName') as string;
+        const lastName = formData.get('lastName') as string;
+
+        if (!firstName || !lastName) {
+            setError([t('errorMissingName')]);
+            return;
+        }
+
         try {
             const userCredential = await auth.createUserWithEmailAndPassword(email, password);
             if (userCredential.user) {
+                await userCredential.user.updateProfile({
+                    displayName: `${firstName.trim()} ${lastName.trim()}`
+                });
                 await userCredential.user.sendEmailVerification();
             }
             setSuccessMessage(t('verificationEmailSentMessage'));
@@ -213,6 +224,19 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
         <p className="auth-modal-subtitle">{t('authModalSubtitle')}</p>
         
         <form className="auth-form" onSubmit={handleSubmit}>
+          {view === 'signup' && (
+            <>
+              <div className="form-group-stack">
+                <label htmlFor="firstName">{t('firstNameLabel')}</label>
+                <input id="firstName" name="firstName" type="text" className="input" placeholder="Jane" required />
+              </div>
+              <div className="form-group-stack">
+                <label htmlFor="lastName">{t('lastNameLabel')}</label>
+                <input id="lastName" name="lastName" type="text" className="input" placeholder="Doe" required />
+              </div>
+            </>
+          )}
+
           <div className="form-group-stack">
             <label htmlFor="email">{t('emailLabel')}</label>
             <input id="email" name="email" type="email" className="input" placeholder="email@example.com" required />

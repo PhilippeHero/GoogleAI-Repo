@@ -947,6 +947,33 @@ textarea[readonly]:focus {
   flex-shrink: 0;
 }
 
+/* User Menu Styles */
+.user-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px; /* circular */
+  cursor: pointer;
+  transition: background-color 0.2s;
+  background: none;
+  border: none;
+  font-family: inherit;
+  color: hsl(var(--foreground));
+}
+
+.user-menu-trigger:hover {
+  background-color: hsl(var(--secondary));
+}
+
+.user-menu-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
 
 /* Dropdown Menu Styles */
 .dropdown {
@@ -962,17 +989,50 @@ textarea[readonly]:focus {
 .dropdown-content {
   position: absolute;
   right: 0;
-  top: calc(100% + 0.25rem);
+  top: calc(100% + 0.5rem);
   background-color: hsl(var(--card));
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   z-index: 10;
-  min-width: 160px;
+  min-width: 200px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: 0.25rem 0;
+  padding: 0;
+}
+
+.dropdown-header {
+  padding: 0.75rem 1rem;
+}
+
+.dropdown-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.dropdown-user-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-user-email {
+  font-size: 0.8rem;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background-color: hsl(var(--border));
+  margin: 0;
 }
 
 .dropdown-item {
@@ -986,6 +1046,16 @@ textarea[readonly]:focus {
   color: hsl(var(--foreground));
   font-family: inherit;
   transition: background-color 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dropdown-item svg {
+  width: 1rem;
+  height: 1rem;
+  color: hsl(var(--muted-foreground));
+  flex-shrink: 0;
 }
 
 .dropdown-item:hover {
