@@ -125,6 +125,12 @@ const MoonIcon: FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const SparkIcon: FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/>
+  </svg>
+);
+
 const FileTextIcon: FC<{ className?: string }> = ({ className }) => (
   <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
 );
@@ -750,7 +756,10 @@ ${extractedKeywords.join(', ')}`;
       
       <nav className={sidebarClasses}>
           <div className="sidebar-header">
-              
+            <div className="sidebar-title-container">
+              <h1 className="sidebar-title">Pearl Labor</h1>
+              <SparkIcon className="sidebar-spark-icon" />
+            </div>
           </div>
           <ul className="sidebar-nav">
               <li className={currentPage === 'generator' ? 'active' : ''}>
