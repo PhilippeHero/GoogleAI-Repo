@@ -1,5 +1,6 @@
 :root {
   --radius: 0.5rem;
+  --sidebar-width: 16rem;
 }
 
 [data-theme='light'] {
@@ -36,7 +37,7 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html, body {
   height: 100%;
   margin: 0;
 }
@@ -46,16 +47,117 @@ body {
   color: hsl(var(--foreground));
   font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   transition: background-color 0.2s, color 0.2s;
+  overflow: hidden; /* Prevent body scroll with new layout */
 }
 
 #root {
+  height: 100%;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 40;
+  background-color: hsl(var(--card));
+  border-right: 1px solid hsl(var(--border));
   display: flex;
   flex-direction: column;
-  max-width: 80%;
-  margin: 0 auto;
-  border-left: 1px solid hsl(var(--border));
-  border-right: 1px solid hsl(var(--border));
-  box-shadow: 0 0 20px hsla(var(--foreground), 0.05);
+  padding: 1rem;
+  width: var(--sidebar-width);
+  transition: transform 0.3s ease-in-out;
+  transform: translateX(-100%);
+}
+
+.sidebar.open {
+  transform: translateX(0);
+}
+
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 0 0.5rem;
+    height: 40px; /* Match button height */
+}
+
+.sidebar-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: hsl(var(--primary));
+    transition: opacity 0.3s ease-in-out;
+}
+
+.sidebar-nav {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.sidebar-nav button {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    background-color: transparent;
+    border: none;
+    color: hsl(var(--muted-foreground));
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.1s, color 0.1s;
+    text-align: left;
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+.sidebar-nav button:hover {
+    background-color: hsl(var(--secondary));
+    color: hsl(var(--foreground));
+}
+
+.sidebar-nav li.active button {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+}
+
+.sidebar-nav svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0,0,0,0.5);
+  z-index: 30;
+}
+
+.main-container {
+    height: 100vh;
+    overflow-y: auto;
+    background-color: hsl(var(--background));
+    transition: padding-left 0.3s ease-in-out;
+    padding-left: 0;
+}
+
+.main-container.sidebar-open {
+  padding-left: var(--sidebar-width);
+}
+
+.main-content-wrapper {
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-header {
@@ -65,6 +167,23 @@ body {
   padding: 1rem 2rem;
   border-bottom: 1px solid hsl(var(--border));
   flex-shrink: 0;
+  width: 100%;
+  background-color: hsla(var(--background), 0.8);
+  backdrop-filter: blur(4px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.header-main-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.page-title h1 {
+  font-size: 1.5em;
+  margin: 0;
 }
 
 .header-controls {
@@ -111,13 +230,14 @@ h1 {
   flex-direction: column;
   gap: 2rem;
   padding: 2rem;
-  overflow-y: auto;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .workflow-description {
   text-align: left;
   color: hsl(var(--muted-foreground));
-//  margin: 0 auto 1.5rem auto;
   max-width: 150ch;
   line-height: 1.6;
 }
@@ -275,6 +395,15 @@ textarea {
   height: 1.25rem;
 }
 
+.btn-destructive {
+    background-color: hsl(var(--destructive));
+    color: hsl(var(--primary-foreground));
+}
+.btn-destructive:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+
 .keywords-container {
   display: flex;
   flex-wrap: wrap;
@@ -300,14 +429,6 @@ textarea {
   margin-right: 0.5rem;
 }
 
-.btn .spinner {
-    margin-right: 0.5rem;
-}
-
-.btn:disabled .spinner {
-    margin-right: 0.5rem;
-}
-
 @keyframes spinner-border {
   to { transform: rotate(360deg); }
 }
@@ -318,7 +439,10 @@ textarea {
     border: 1px solid hsla(var(--destructive), 0.2);
     border-radius: var(--radius);
     padding: 1rem;
-    margin: 1rem 2rem 0;
+    margin: 0 2rem 1rem;
+    max-width: 1200px;
+    width: calc(100% - 4rem);
+    align-self: center;
 }
 
 .modal-overlay {
@@ -330,6 +454,8 @@ textarea {
   justify-content: center;
   align-items: center;
   z-index: 50;
+  overflow-y: auto;
+  padding: 2rem 0;
 }
 
 .modal-content {
@@ -370,22 +496,170 @@ textarea {
   color: hsl(var(--muted-foreground));
 }
 
-/* --- Responsive Design for Mobile --- */
+.add-job-card {
+}
+
+.add-job-controls {
+    display: flex;
+    gap: 1rem;
+}
+
+.add-job-controls .input {
+    flex-grow: 1;
+}
+
+.error-inline {
+    font-size: 0.875rem;
+    color: hsl(var(--destructive));
+    margin-top: 0.75rem;
+    margin-bottom: 0;
+}
+
+/* Job Modal styles */
+.modal-content.edit-job-modal {
+    max-width: 600px;
+    text-align: left;
+    align-items: stretch;
+}
+
+.edit-job-modal h2 {
+    margin-top: 0;
+    color: hsl(var(--card-foreground));
+    font-size: 1.5rem;
+}
+
+.edit-job-modal p {
+    color: hsl(var(--muted-foreground));
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+.form-group-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.form-group-stack label {
+    margin-bottom: -0.5rem; /* bring label closer to its input */
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+    width: 100%;
+}
+
+.jobs-list-card {
+  width: 100%;
+}
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+}
+
+.jobs-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.9rem;
+    table-layout: fixed;
+}
+
+.jobs-table th, .jobs-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid hsl(var(--border));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jobs-table .truncate-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jobs-table a.truncate-text {
+    color: hsl(var(--primary));
+    text-decoration: none;
+}
+.jobs-table a.truncate-text:hover {
+    text-decoration: underline;
+}
+
+.jobs-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.jobs-table th {
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    background-color: hsl(var(--secondary));
+}
+
+.jobs-table tbody tr:hover {
+    background-color: hsl(var(--input));
+}
+
+.jobs-table .job-actions {
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* Confirmation Modal styles */
+.confirmation-modal {
+    max-width: 450px;
+    text-align: left;
+    align-items: stretch;
+    padding: 2rem;
+}
+
+.confirmation-modal h2 {
+    margin-top: 0;
+    color: hsl(var(--card-foreground));
+    font-size: 1.25rem;
+}
+
+.confirmation-modal-body {
+    margin: 1rem 0;
+    color: hsl(var(--muted-foreground));
+    font-size: 0.9rem;
+}
+
+
+/* --- Responsive Design --- */
+@media (max-width: 1024px) {
+  /* On mobile, the sidebar is an overlay, so main content doesn't need padding */
+  .main-container.sidebar-open {
+    padding-left: 0;
+  }
+}
+
 @media (max-width: 768px) {
-  #root {
-    max-width: 100%;
-    border: none;
-    box-shadow: none;
+  .app-header {
+    padding: 1rem;
+  }
+  .main-content {
+    padding: 1rem;
   }
 
-  .app-header,
-  .main-content {
-    padding-left: 1rem;
-    padding-right: 1rem;
+  .header-main-section {
+    gap: 0.5rem;
   }
   
-  h1 {
+  .page-title h1 {
     font-size: 1.25em;
+  }
+  .app-subtitle {
+    display: none;
   }
 
   .generation-controls-wrapper {
@@ -424,5 +698,13 @@ textarea {
   
   .card {
     padding: 1rem;
+  }
+
+  .header-controls {
+    gap: 0.5rem;
+  }
+
+  .add-job-controls {
+    flex-direction: column;
   }
 }

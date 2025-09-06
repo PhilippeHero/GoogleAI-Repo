@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import { GoogleGenAI, Type } from '@google/genai';
-import { useState, useRef, FC, CSSProperties, useEffect } from 'react';
+import { useState, useRef, FC, CSSProperties, useEffect, ChangeEvent } from 'react';
 import ReactDOM from 'react-dom/client';
 import { Packer, Document, Paragraph, TextRun } from 'docx';
 import saveAs from 'file-saver';
@@ -22,9 +22,25 @@ const Button: FC<{ children: React.ReactNode, onClick?: () => void, disabled?: b
   </button>
 );
 
-const Textarea: FC<{ value: string, onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void, placeholder: string }> = 
-({ value, onChange, placeholder }) => (
-  <textarea className="input" value={value} onChange={onChange} placeholder={placeholder} />
+// FIX: Updated Textarea to accept id, name, and a more generic onChange handler to fix type errors.
+const Textarea: FC<{
+  value: string;
+  onChange: (e: ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => void;
+  placeholder: string;
+  style?: CSSProperties;
+  id?: string;
+  name?: string;
+}> = ({ value, onChange, placeholder, style, id, name }) => (
+  <textarea
+    className="input"
+    value={value}
+    // FIX: Corrected the type cast for the onChange event handler. The namespace 'Change' was incorrect.
+    onChange={onChange as (e: ChangeEvent<HTMLTextAreaElement>) => void}
+    placeholder={placeholder}
+    style={style}
+    id={id}
+    name={name}
+  />
 );
 
 const Collapsible: FC<{ title: string, children: React.ReactNode, isOpen: boolean, onToggle: () => void }> = ({ title, children, isOpen, onToggle }) => {
@@ -64,6 +80,30 @@ const Modal: FC<{ message: string, footerText: string }> = ({ message, footerTex
   );
 };
 
+const ConfirmationModal: FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  children: React.ReactNode;
+  t: (key: keyof typeof translations['EN']) => string;
+}> = ({ isOpen, onClose, onConfirm, title, children, t }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+      <div className="modal-content confirmation-modal">
+        <h2 id="confirm-dialog-title">{title}</h2>
+        <div className="confirmation-modal-body">{children}</div>
+        <div className="modal-actions">
+          <Button onClick={onClose} variant="secondary">{t('cancelButton')}</Button>
+          <Button onClick={onConfirm} className="btn-destructive">{t('confirmButton')}</Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Icon Components ---
 const SunIcon: FC<{ className?: string }> = ({ className }) => (
   <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -85,11 +125,373 @@ const MoonIcon: FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const FileTextIcon: FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
+);
+
+const BriefcaseIcon: FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+);
+
+const ChevronLeftIcon: FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+);
+
+const MenuIcon: FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+);
+
+// --- App-specific Components ---
+type Job = {
+  id: number;
+  title: string;
+  company: string;
+  location: string;
+  posted: string; // Stored as YYYY-MM-DD
+  description: string;
+  url: string;
+};
+
+type ExtractedJobData = Omit<Job, 'id'>;
+
+const getInitialDate = (daysAgo: number) => {
+    const date = new Date();
+    date.setDate(date.getDate() - daysAgo);
+    return date.toISOString().split('T')[0];
+};
+
+const getTodayDate = () => {
+    return new Date().toISOString().split('T')[0];
+};
+
+const initialJobs: Job[] = [
+    { id: 1, title: 'Senior Frontend Engineer', company: 'Stark Industries', location: 'New York, NY', posted: getInitialDate(2), url: 'https://example.com/job/1', description: 'Seeking a talented frontend engineer to build next-generation UIs for our advanced projects. Must be proficient in React and Stark-Tech.' },
+    { id: 2, title: 'Product Manager', company: 'Wayne Enterprises', location: 'Gotham City', posted: getInitialDate(3), url: 'https://example.com/job/2', description: 'Lead the product development lifecycle for our new line of public safety solutions. Experience in hardware and software is a plus.' },
+    { id: 3, title: 'UX/UI Designer', company: 'Cyberdyne Systems', location: 'Sunnyvale, CA', posted: getInitialDate(7), url: 'https://example.com/job/3', description: 'Design intuitive and engaging user experiences for our global defense network. Strong portfolio in complex systems required.' },
+    { id: 4, title: 'Backend Developer (Go)', company: 'Oscorp', location: 'New York, NY', posted: getInitialDate(8), url: 'https://example.com/job/4', description: 'Develop and maintain high-performance backend services for genetic research applications. Experience with large-scale databases is essential.' },
+    { id: 5, title: 'Data Scientist', company: 'Tyrell Corporation', location: 'Los Angeles, CA', posted: getInitialDate(14), url: 'https://example.com/job/5', description: 'Analyze and interpret complex data sets to create more-human-than-human replicants. Advanced degree in a quantitative field preferred.' },
+];
+
+
+const JobModal: FC<{
+  job: Partial<Job> | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (job: Partial<Job>) => void;
+  onDelete: (jobId: number) => void;
+  t: (key: keyof typeof translations['EN']) => string;
+}> = ({ job, isOpen, onClose, onSave, onDelete, t }) => {
+  const [formData, setFormData] = useState<Partial<Job> | null>(job);
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+
+  useEffect(() => {
+    setFormData(job);
+  }, [job]);
+
+  if (!isOpen || !formData) return null;
+
+  const isEditing = formData.id !== undefined;
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => prev ? { ...prev, [name]: value } : null);
+  };
+
+  const handleSave = () => {
+    if (formData) {
+      onSave(formData);
+    }
+  };
+
+  const handleDelete = () => {
+    if (isEditing) {
+        setIsConfirmDeleteOpen(true);
+    }
+  };
+
+  const handleConfirmDelete = () => {
+      if(isEditing && formData.id) {
+          onDelete(formData.id);
+      }
+  }
+
+  return (
+    <>
+      <ConfirmationModal
+        isOpen={isConfirmDeleteOpen}
+        onClose={() => setIsConfirmDeleteOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title={t('deleteJobConfirmationTitle')}
+        t={t}
+      >
+        <p>{t('deleteJobConfirmation')}</p>
+      </ConfirmationModal>
+
+      <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="job-dialog-title">
+        <div className="modal-content edit-job-modal">
+          <h2 id="job-dialog-title">{isEditing ? t('editJobTitle') : t('addJobTitle')}</h2>
+          <p>{isEditing ? t('editJobDetailsSubtitle') : t('confirmJobDetailsSubtitle')}</p>
+          <div className="form-group-stack">
+            <label htmlFor="title">{t('jobColumnTitle')}</label>
+            <input id="title" name="title" value={formData.title || ''} onChange={handleChange} className="input" />
+
+            <label htmlFor="company">{t('jobColumnCompany')}</label>
+            <input id="company" name="company" value={formData.company || ''} onChange={handleChange} className="input" />
+            
+            <label htmlFor="location">{t('jobColumnLocation')}</label>
+            <input id="location" name="location" value={formData.location || ''} onChange={handleChange} className="input" />
+
+            <label htmlFor="url">{t('jobColumnUrl')}</label>
+            <input id="url" name="url" type="url" value={formData.url || ''} onChange={handleChange} className="input" />
+            
+            <label htmlFor="posted">{t('jobColumnPosted')}</label>
+            <input id="posted" name="posted" type="date" value={formData.posted || ''} onChange={handleChange} className="input" />
+            
+            <label htmlFor="description">{t('jobColumnDescription')}</label>
+            <Textarea id="description" name="description" value={formData.description || ''} onChange={handleChange} placeholder="" style={{minHeight: '100px'}} />
+          </div>
+          <div className="modal-actions">
+            {isEditing && (
+              <Button onClick={handleDelete} variant="secondary" className="btn-destructive" style={{ marginRight: 'auto' }}>
+                {t('deleteButton')}
+              </Button>
+            )}
+            <Button onClick={onClose} variant="secondary">{t('cancelButton')}</Button>
+            <Button onClick={handleSave}>{isEditing ? t('saveButton') : t('addButton')}</Button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+const formatDate = (isoDate: string): string => {
+  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+    return 'N/A';
+  }
+  try {
+    const [year, month, day] = isoDate.split('-');
+    return `${day}/${month}/${year}`;
+  } catch (e) {
+    return isoDate; // Fallback to original string if something goes wrong
+  }
+};
+
+const JobsListPage: FC<{ t: (key: keyof typeof translations['EN']) => string }> = ({ t }) => {
+    const [jobs, setJobs] = useState<Job[]>(initialJobs);
+    const [jobUrl, setJobUrl] = useState('');
+    const [isExtracting, setIsExtracting] = useState(false);
+    const [extractionError, setExtractionError] = useState('');
+
+    const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+    const [selectedJob, setSelectedJob] = useState<Partial<Job> | null>(null);
+
+    // FIX: Refactored to a two-step process to reliably extract job data from a URL.
+    // 1. Use `googleSearch` tool to retrieve text content related to the job URL.
+    // 2. Use a second API call with `responseSchema` to extract structured JSON from the text.
+    // This approach is more robust and aligns with API best practices for using tools and getting structured output.
+    const handleAddJob = async () => {
+        if (!jobUrl) {
+            setSelectedJob({ posted: getTodayDate() });
+            setIsJobModalOpen(true);
+            return;
+        }
+
+        setIsExtracting(true);
+        setExtractionError('');
+        
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            
+            // Step 1: Use Google Search to get information about the job at the URL.
+            const searchPrompt = `Please provide the full text of the job description from the following URL: ${jobUrl}`;
+            const searchResponse = await ai.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: searchPrompt,
+                config: {
+                    tools: [{ googleSearch: {} }],
+                }
+            });
+
+            const jobPageContent = searchResponse.text;
+            if (!jobPageContent || jobPageContent.length < 50) { // Simple check for useful content
+                 throw new Error("Could not retrieve sufficient information from the URL via search.");
+            }
+
+            // Step 2: Extract structured data from the retrieved content.
+            const extractionPrompt = `From the following job posting text, extract the job title, company, location, posted date, and a brief description.
+- For the "posted" key, you MUST provide the date in YYYY-MM-DD format. If the date is relative (e.g., "3 days ago"), calculate the absolute date based on today's date. If it is impossible to determine the date, use an empty string.
+- For the "description", provide a brief summary of 50-100 words.
+- If any piece of information cannot be found, use an empty string "" as the value for that key.
+
+Job Posting Text:
+${jobPageContent}`;
+
+            const extractResponse = await ai.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: extractionPrompt,
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            title: { type: Type.STRING },
+                            company: { type: Type.STRING },
+                            location: { type: Type.STRING },
+                            posted: { type: Type.STRING, description: "The date in YYYY-MM-DD format. If not found, use empty string." },
+                            description: { type: Type.STRING, description: "A brief summary of 50-100 words." },
+                        },
+                        required: ["title", "company", "location", "posted", "description"]
+                    }
+                }
+            });
+            
+            const extractedData = JSON.parse(extractResponse.text.trim());
+
+            const validatedData: ExtractedJobData = {
+                title: extractedData.title || 'N/A',
+                company: extractedData.company || 'N/A',
+                location: extractedData.location || 'N/A',
+                posted: extractedData.posted || getTodayDate(),
+                description: extractedData.description || 'Could not extract description.',
+                url: jobUrl,
+            };
+
+            setSelectedJob(validatedData);
+            setIsJobModalOpen(true);
+            setJobUrl('');
+
+        } catch (error) {
+            console.error(error);
+            setExtractionError(t('errorUrlExtraction'));
+        } finally {
+            setIsExtracting(false);
+        }
+    };
+    
+    const handleOpenEditModal = (job: Job) => {
+        setSelectedJob(job);
+        setIsJobModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsJobModalOpen(false);
+        setSelectedJob(null);
+    };
+    
+    const handleSaveJob = (jobData: Partial<Job>) => {
+        if (jobData.id) { // Editing existing job
+            setJobs(jobs.map(j => j.id === jobData.id ? { ...j, ...jobData } as Job : j));
+        } else { // Adding new job
+            const newJob: Job = {
+                id: Date.now(),
+                title: jobData.title || 'Untitled Job',
+                company: jobData.company || 'N/A',
+                location: jobData.location || 'N/A',
+                posted: jobData.posted || '',
+                description: jobData.description || '',
+                url: jobData.url || '',
+            };
+            setJobs([newJob, ...jobs]);
+        }
+        handleCloseModal();
+    };
+
+    const handleDeleteJob = (jobId: number) => {
+        setJobs(jobs.filter(j => j.id !== jobId));
+        handleCloseModal();
+    };
+    
+    return (
+        <>
+            <JobModal 
+                isOpen={isJobModalOpen}
+                onClose={handleCloseModal}
+                job={selectedJob}
+                onSave={handleSaveJob}
+                onDelete={handleDeleteJob}
+                t={t}
+            />
+            <Card className="add-job-card">
+                <h3 className="card-header">{t('addJobFromUrlTitle')}</h3>
+                <div className="add-job-controls">
+                    <input 
+                        type="url" 
+                        value={jobUrl}
+                        onChange={e => setJobUrl(e.target.value)}
+                        placeholder={t('jobUrlPlaceholder')}
+                        className="input"
+                        disabled={isExtracting}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddJob();}}
+                    />
+                    <Button onClick={handleAddJob} disabled={isExtracting}>
+                        {isExtracting ? (
+                            <>
+                                <span className="spinner" style={{width: '1rem', height: '1rem', marginRight: '0.5rem', borderWidth: '2px'}}/>
+                                {t('addingButton')}
+                            </>
+                        ) : t('addButton')}
+                    </Button>
+                </div>
+                {extractionError && <p className="error-inline">{extractionError}</p>}
+            </Card>
+
+            <Card className="jobs-list-card">
+                <h3 className="card-header">{t('jobsListTitle')}</h3>
+                <div className="table-responsive">
+                    <table className="jobs-table">
+                        <thead>
+                            <tr>
+                                <th>{t('jobColumnTitle')}</th>
+                                <th>{t('jobColumnCompany')}</th>
+                                <th>{t('jobColumnLocation')}</th>
+                                <th style={{minWidth: '250px'}}>{t('jobColumnDescription')}</th>
+                                <th style={{minWidth: '200px'}}>{t('jobColumnUrl')}</th>
+                                <th>{t('jobColumnPosted')}</th>
+                                <th>{t('jobColumnActions')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {jobs.map(job => (
+                                <tr key={job.id}>
+                                    <td>{job.title}</td>
+                                    <td>{job.company}</td>
+                                    <td>{job.location}</td>
+                                    <td><div className="truncate-text">{job.description}</div></td>
+                                    <td>
+                                      <a href={job.url} target="_blank" rel="noopener noreferrer" className="truncate-text">
+                                        {job.url}
+                                      </a>
+                                    </td>
+                                    <td>{formatDate(job.posted)}</td>
+                                    <td className="job-actions">
+                                      <Button onClick={() => handleOpenEditModal(job)} variant="secondary" className="btn-sm">
+                                        {t('editButton')}
+                                      </Button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+        </>
+    );
+};
+
+type Page = 'generator' | 'jobs';
 
 // --- Main Application ---
 
 function App() {
-  // State Management
+  const DESKTOP_BREAKPOINT = 1024;
+  
+  // Navigation State
+  const [currentPage, setCurrentPage] = useState<Page>('generator');
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= DESKTOP_BREAKPOINT);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= DESKTOP_BREAKPOINT);
+
+  // Generator State
   const [theme, setTheme] = useState('light');
   const [uiLanguage, setUiLanguage] = useState<LanguageCode>('EN');
   const [maxWords, setMaxWords] = useState(300);
@@ -118,6 +520,18 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+      const handleResize = () => {
+          const isDesktopNow = window.innerWidth >= DESKTOP_BREAKPOINT;
+          if (isDesktopNow !== isDesktop) {
+              setIsDesktop(isDesktopNow);
+              setIsSidebarOpen(isDesktopNow); // Auto open/close on breakpoint change
+          }
+      };
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+  }, [isDesktop]);
 
   useEffect(() => {
     localStorage.setItem('cvContent', cvContent);
@@ -318,165 +732,215 @@ ${extractedKeywords.join(', ')}`;
     return `${t('generatingModalMessage')} ${maxWords} ${t('words')} ${t('in')} ${translatedLanguage}, ${t('in')} ${translatedOutputFormat} ${t('format')}...`;
   };
 
+  const sidebarClasses = [
+    'sidebar',
+    isSidebarOpen ? 'open' : '',
+    isDesktop ? '' : 'mobile',
+  ].join(' ');
+  
+  const mainContainerClasses = [
+    'main-container',
+    isDesktop && isSidebarOpen ? 'sidebar-open' : ''
+  ].join(' ');
+
   return (
     <>
       {isLoading && <Modal message={getModalMessage()} footerText={t('modalFooterText')} />}
-      <header className="app-header">
-        <div>
-          <h1>{t('appTitle')}</h1>
-          <p className="app-subtitle">{t('appSubtitle')}</p>
-        </div>
-        <div className="header-controls">
-           <select
-              id="uiLanguage"
-              value={uiLanguage}
-              onChange={(e) => setUiLanguage(e.target.value as LanguageCode)}
-              className="input"
-              aria-label={t('selectUiLanguageLabel')}
-            >
-              <option value="EN">EN</option>
-              <option value="DE">DE</option>
-              <option value="FR">FR</option>
-            </select>
-          <Button onClick={toggleTheme} variant="secondary" className="btn-icon">
-            {theme === 'light' ? <MoonIcon /> : <SunIcon />}
-          </Button>
-        </div>
-      </header>
+      {!isDesktop && isSidebarOpen && <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)} />}
       
-      <main className="main-content">
-        <p className="workflow-description">{t('workflowDescription')}</p>
-        <Collapsible title={t('inputFilesTitle')} isOpen={isInputOpen} onToggle={() => setIsInputOpen(!isInputOpen)}>
-          <Card>
-              <div className="card-header-wrapper">
-                <h3 className="card-header">{t('cvHeader')}</h3>
-                <div className="card-header-actions">
-                  {cvContent && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
-                  <Button variant="secondary" onClick={() => cvUploadRef.current?.click()} className="btn-sm">{t('uploadFileButton')}</Button>
-                  {cvContent && <Button variant="secondary" onClick={() => setCvContent('')} className="btn-sm">{t('clearButton')}</Button>}
+      <nav className={sidebarClasses}>
+          <div className="sidebar-header">
+              
+          </div>
+          <ul className="sidebar-nav">
+              <li className={currentPage === 'generator' ? 'active' : ''}>
+                  <button onClick={() => setCurrentPage('generator')}>
+                      <FileTextIcon />
+                      <span>{t('menuGenerator')}</span>
+                  </button>
+              </li>
+              <li className={currentPage === 'jobs' ? 'active' : ''}>
+                  <button onClick={() => setCurrentPage('jobs')}>
+                      <BriefcaseIcon />
+                      <span>{t('menuJobs')}</span>
+                  </button>
+              </li>
+          </ul>
+      </nav>
+      
+      <div className={mainContainerClasses}>
+          <header className="app-header">
+            <div className="header-main-section">
+                <Button 
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+                    variant="secondary" 
+                    className="btn-icon sidebar-trigger"
+                    aria-label={isSidebarOpen ? "Collapse menu" : "Expand menu"}
+                >
+                    <MenuIcon />
+                </Button>
+                <div className="page-title">
+                    <h1>{currentPage === 'generator' ? t('appTitle') : t('jobsListTitle')}</h1>
+                    <p className="app-subtitle">{currentPage === 'generator' ? t('appSubtitle') : t('jobsListSubtitle')}</p>
                 </div>
             </div>
-            <Textarea 
-              value={cvContent}
-              onChange={(e) => setCvContent(e.target.value)}
-              placeholder={t('cvPlaceholder')}
-            />
-            <input type="file" ref={cvUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setCvContent)} accept=".txt,.md" />
-          </Card>
-          <Card>
-            <div className="card-header-wrapper">
-              <h3 className="card-header">{t('jobDescriptionHeader')}</h3>
-              <div className="card-header-actions">
-                 {jobDescriptionContent && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
-                <Button variant="secondary" onClick={() => jobUploadRef.current?.click()} className="btn-sm">{t('uploadFileButton')}</Button>
-                {jobDescriptionContent && <Button variant="secondary" onClick={() => setJobDescriptionContent('')} className="btn-sm">{t('clearButton')}</Button>}
-              </div>
-            </div>
-            <Textarea 
-              value={jobDescriptionContent}
-              onChange={(e) => setJobDescriptionContent(e.target.value)}
-              placeholder={t('jobDescriptionPlaceholder')}
-            />
-            <input type="file" ref={jobUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setJobDescriptionContent)} accept=".txt,.md" />
-          </Card>
-        </Collapsible>
-        
-        <Card>
-          <div className="generation-controls-wrapper">
-            <Button onClick={generateContent} disabled={isLoading || !cvContent || !jobDescriptionContent}>
-              {t('generateButton')}
-            </Button>
-            <div className="settings-options">
-              <div className="form-group">
-                <label htmlFor="maxWords">{t('maxWordsLabel')}</label>
-                <input 
-                  id="maxWords"
-                  type="number"
-                  value={maxWords}
-                  onChange={(e) => setMaxWords(parseInt(e.target.value, 10))}
+            <div className="header-controls">
+              <select
+                  id="uiLanguage"
+                  value={uiLanguage}
+                  onChange={(e) => setUiLanguage(e.target.value as LanguageCode)}
                   className="input"
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="outputFormat">{t('outputFormatLabel')}</label>
-                <select 
-                  id="outputFormat"
-                  value={outputFormat}
-                  onChange={(e) => setOutputFormat(e.target.value)}
-                  className="input"
+                  aria-label={t('selectUiLanguageLabel')}
                 >
-                  <option value="MS Word">{t('outputFormatMsWord')}</option>
-                  <option value="Google Docs">{t('outputFormatGoogleDocs')}</option>
+                  <option value="EN">EN</option>
+                  <option value="DE">DE</option>
+                  <option value="FR">FR</option>
                 </select>
-              </div>
-              <div className="form-group">
-                <label htmlFor="language">{t('languageLabel')}</label>
-                <select 
-                  id="language"
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="input"
-                >
-                  <option value="English">{t('languageEnglish')}</option>
-                  <option value="German">{t('languageGerman')}</option>
-                  <option value="French">{t('languageFrench')}</option>
-                </select>
-              </div>
+              <Button onClick={toggleTheme} variant="secondary" className="btn-icon" aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}>
+                {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+              </Button>
             </div>
-          </div>
-        </Card>
-        
-        <Collapsible title={t('outputFilesTitle')} isOpen={isOutputOpen} onToggle={() => setIsOutputOpen(!isOutputOpen)}>
-          <Card>
-            <div className="card-header-wrapper">
-              <h3 className="card-header">{t('keywordsHeader')}</h3>
-              <div className="card-header-actions">
-                {keywords.length > 0 && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
-                {keywords.length > 0 && <Button variant="secondary" onClick={() => setKeywords([])} className="btn-sm">{t('clearButton')}</Button>}
-              </div>
-            </div>
-            <div className="keywords-container">
-              {keywords.map((kw, i) => <span key={i} className="badge">{kw}</span>)}
-            </div>
-          </Card>
-          <Card>
-            <div className="card-header-wrapper">
-              <h3 className="card-header">{t('shortProfileHeader')}</h3>
-              <div className="card-header-actions">
-                {shortProfile && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
-                <Button onClick={handleShortProfileDownload} disabled={!shortProfile} variant="secondary" className="btn-sm">
-                  {outputFormat === 'MS Word' ? t('downloadButton') : t('copyButton')}
-                </Button>
-                {shortProfile && <Button variant="secondary" onClick={() => setShortProfile('')} className="btn-sm">{t('clearButton')}</Button>}
-              </div>
-            </div>
-            <Textarea 
-              value={shortProfile}
-              onChange={(e) => setShortProfile(e.target.value)}
-              placeholder={t('shortProfilePlaceholder')}
-            />
-          </Card>
-          <Card>
-              <div className="card-header-wrapper">
-              <h3 className="card-header">{t('generatedCoverLetterHeader')}</h3>
-              <div className="card-header-actions">
-                {coverLetter && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
-                <Button onClick={handleCoverLetterDownload} disabled={!coverLetter} variant="secondary" className="btn-sm">
-                  {outputFormat === 'MS Word' ? t('downloadButton') : t('copyButton')}
-                </Button>
-                {coverLetter && <Button variant="secondary" onClick={() => setCoverLetter('')} className="btn-sm">{t('clearButton')}</Button>}
-              </div>
-            </div>
-            <Textarea 
-              value={coverLetter}
-              onChange={(e) => setCoverLetter(e.target.value)}
-              placeholder={t('coverLetterPlaceholder')}
-            />
-          </Card>
-        </Collapsible>
-      </main>
-      
-      {error && <div className="error" role="alert">{error}</div>}
+          </header>
+          
+          <main className="main-content">
+            {currentPage === 'generator' && (
+              <>
+                <p className="workflow-description">{t('workflowDescription')}</p>
+                <Collapsible title={t('inputFilesTitle')} isOpen={isInputOpen} onToggle={() => setIsInputOpen(!isInputOpen)}>
+                  <Card>
+                      <div className="card-header-wrapper">
+                        <h3 className="card-header">{t('cvHeader')}</h3>
+                        <div className="card-header-actions">
+                          {cvContent && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
+                          <Button variant="secondary" onClick={() => cvUploadRef.current?.click()} className="btn-sm">{t('uploadFileButton')}</Button>
+                          {cvContent && <Button variant="secondary" onClick={() => setCvContent('')} className="btn-sm">{t('clearButton')}</Button>}
+                        </div>
+                    </div>
+                    <Textarea 
+                      value={cvContent}
+                      onChange={(e) => setCvContent(e.target.value)}
+                      placeholder={t('cvPlaceholder')}
+                    />
+                    <input type="file" ref={cvUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setCvContent)} accept=".txt,.md" />
+                  </Card>
+                  <Card>
+                    <div className="card-header-wrapper">
+                      <h3 className="card-header">{t('jobDescriptionHeader')}</h3>
+                      <div className="card-header-actions">
+                        {jobDescriptionContent && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
+                        <Button variant="secondary" onClick={() => jobUploadRef.current?.click()} className="btn-sm">{t('uploadFileButton')}</Button>
+                        {jobDescriptionContent && <Button variant="secondary" onClick={() => setJobDescriptionContent('')} className="btn-sm">{t('clearButton')}</Button>}
+                      </div>
+                    </div>
+                    <Textarea 
+                      value={jobDescriptionContent}
+                      onChange={(e) => setJobDescriptionContent(e.target.value)}
+                      placeholder={t('jobDescriptionPlaceholder')}
+                    />
+                    <input type="file" ref={jobUploadRef} style={{display: 'none'}} onChange={(e) => handleFileUpload(e, setJobDescriptionContent)} accept=".txt,.md" />
+                  </Card>
+                </Collapsible>
+                
+                <Card>
+                  <div className="generation-controls-wrapper">
+                    <Button onClick={generateContent} disabled={isLoading || !cvContent || !jobDescriptionContent}>
+                      {t('generateButton')}
+                    </Button>
+                    <div className="settings-options">
+                      <div className="form-group">
+                        <label htmlFor="maxWords">{t('maxWordsLabel')}</label>
+                        <input 
+                          id="maxWords"
+                          type="number"
+                          value={maxWords}
+                          onChange={(e) => setMaxWords(parseInt(e.target.value, 10))}
+                          className="input"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="outputFormat">{t('outputFormatLabel')}</label>
+                        <select 
+                          id="outputFormat"
+                          value={outputFormat}
+                          onChange={(e) => setOutputFormat(e.target.value)}
+                          className="input"
+                        >
+                          <option value="MS Word">{t('outputFormatMsWord')}</option>
+                          <option value="Google Docs">{t('outputFormatGoogleDocs')}</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="language">{t('languageLabel')}</label>
+                        <select 
+                          id="language"
+                          value={language}
+                          onChange={(e) => setLanguage(e.target.value)}
+                          className="input"
+                        >
+                          <option value="English">{t('languageEnglish')}</option>
+                          <option value="German">{t('languageGerman')}</option>
+                          <option value="French">{t('languageFrench')}</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+                
+                <Collapsible title={t('outputFilesTitle')} isOpen={isOutputOpen} onToggle={() => setIsOutputOpen(!isOutputOpen)}>
+                  <Card>
+                    <div className="card-header-wrapper">
+                      <h3 className="card-header">{t('keywordsHeader')}</h3>
+                      <div className="card-header-actions">
+                        {keywords.length > 0 && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
+                        {keywords.length > 0 && <Button variant="secondary" onClick={() => setKeywords([])} className="btn-sm">{t('clearButton')}</Button>}
+                      </div>
+                    </div>
+                    <div className="keywords-container">
+                      {keywords.map((kw, i) => <span key={i} className="badge">{kw}</span>)}
+                    </div>
+                  </Card>
+                  <Card>
+                    <div className="card-header-wrapper">
+                      <h3 className="card-header">{t('shortProfileHeader')}</h3>
+                      <div className="card-header-actions">
+                        {shortProfile && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
+                        <Button onClick={handleShortProfileDownload} disabled={!shortProfile} variant="secondary" className="btn-sm">
+                          {outputFormat === 'MS Word' ? t('downloadButton') : t('copyButton')}
+                        </Button>
+                        {shortProfile && <Button variant="secondary" onClick={() => setShortProfile('')} className="btn-sm">{t('clearButton')}</Button>}
+                      </div>
+                    </div>
+                    <Textarea 
+                      value={shortProfile}
+                      onChange={(e) => setShortProfile(e.target.value)}
+                      placeholder={t('shortProfilePlaceholder')}
+                    />
+                  </Card>
+                  <Card>
+                      <div className="card-header-wrapper">
+                      <h3 className="card-header">{t('generatedCoverLetterHeader')}</h3>
+                      <div className="card-header-actions">
+                        {coverLetter && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
+                        <Button onClick={handleCoverLetterDownload} disabled={!coverLetter} variant="secondary" className="btn-sm">
+                          {outputFormat === 'MS Word' ? t('downloadButton') : t('copyButton')}
+                        </Button>
+                        {coverLetter && <Button variant="secondary" onClick={() => setCoverLetter('')} className="btn-sm">{t('clearButton')}</Button>}
+                      </div>
+                    </div>
+                    <Textarea 
+                      value={coverLetter}
+                      onChange={(e) => setCoverLetter(e.target.value)}
+                      placeholder={t('coverLetterPlaceholder')}
+                    />
+                  </Card>
+                </Collapsible>
+              </>
+            )}
+            {currentPage === 'jobs' && <JobsListPage t={t} />}
+          </main>
+          
+          {error && <div className="error" role="alert">{error}</div>}
+      </div>
     </>
   );
 }
