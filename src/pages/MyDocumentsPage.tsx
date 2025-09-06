@@ -191,7 +191,10 @@ const DocumentEditSidePane: FC<{
                         </select>
 
                         <div className="form-group-expand" style={{marginTop: '1rem'}}>
-                            <label htmlFor="doc-content-preview">{t('documentContentHeader')}</label>
+                            <div className="card-header-wrapper" style={{marginBottom: '0.5rem'}}>
+                                <label htmlFor="doc-content-preview">{t('documentContentHeader')}</label>
+                                <Button onClick={handleUpload} variant="secondary">{t('uploadNewVersionButton')}</Button>
+                            </div>
                             <Textarea 
                                 id="doc-content-preview" 
                                 name="content" 
@@ -207,7 +210,6 @@ const DocumentEditSidePane: FC<{
                     <Button onClick={handleDelete} variant="secondary" className="btn-destructive" style={{ marginRight: 'auto' }}>
                         {t('deleteButton')}
                     </Button>
-                    <Button onClick={handleUpload} variant="secondary">{t('uploadNewVersionButton')}</Button>
                     <Button onClick={onClose} variant="secondary">{t('cancelButton')}</Button>
                     <Button onClick={handleSave}>{t('saveButton')}</Button>
                 </div>
