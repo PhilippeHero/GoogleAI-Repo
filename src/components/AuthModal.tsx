@@ -2,13 +2,13 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import React, { FC, useState } from 'react';
+import React, { FC, useState, useEffect, useRef } from 'react';
 // Fix: Use Firebase v8 compat imports
 // Fix: Changed firebase/app to firebase/compat/app and added firebase/compat/auth to use v8 compatibility mode and resolve errors.
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import { Button } from './ui';
-import { SparkIcon, GoogleIcon } from './icons';
+import { SparkIcon, GoogleIcon, EyeIcon, EyeOffIcon } from './icons';
 import { translations } from '../../translations';
 import { auth } from '../firebase';
 
@@ -20,15 +20,56 @@ type AuthModalProps = {
   t: (key: keyof typeof translations['EN']) => string;
 };
 
+type View = 'signin' | 'signup' | 'forgot' | 'success';
+
 export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess, t }) => {
   const [error, setError] = useState<string[]>([]);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [view, setView] = useState<View>('signin');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [onSuccessAction, setOnSuccessAction] = useState<'login' | 'close'>('close');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+
+  const forgotEmailRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+        setView('signin');
+        setError([]);
+        setSuccessMessage('');
+        setIsPasswordVisible(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleAuthToggle = () => {
       setError([]);
-      setAuthMode(prev => prev === 'signin' ? 'signup' : 'signin');
+      setIsPasswordVisible(false);
+      setView(prev => prev === 'signin' ? 'signup' : 'signin');
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError([]);
+    const email = forgotEmailRef.current?.value;
+    
+    if (!email) {
+        setError(["Please enter an email address."]);
+        return;
+    }
+
+    try {
+        await auth.sendPasswordResetEmail(email);
+        setSuccessMessage(t('resetEmailSentMessage'));
+        setOnSuccessAction('close');
+        setView('success');
+    } catch (err: any) {
+        if (err && err.code === 'auth/user-not-found') {
+            setError([t('errorUserNotFound')]);
+        } else {
+            setError([err.message || "An unexpected error occurred."]);
+        }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -43,12 +84,11 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
         return;
     }
 
-    if (authMode === 'signin') {
+    if (view === 'signin') {
         try {
             await auth.signInWithEmailAndPassword(email, password);
             onLoginSuccess();
         } catch (err: any) {
-            // Check if it looks like a Firebase error by checking for a 'code' property
             if (err && err.code) {
                 switch(err.code) {
                     case 'auth/user-not-found':
@@ -60,7 +100,6 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
                         setError([t('errorWrongPassword')]);
                         break;
                     default:
-                        // For any other Firebase error, display its message directly for more specific feedback.
                         setError([err.message || 'An unexpected error occurred during sign in.']);
                 }
             } else {
@@ -69,15 +108,17 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
         }
     } else { // signup mode
         try {
-            await auth.createUserWithEmailAndPassword(email, password);
-            onLoginSuccess();
+            const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+            if (userCredential.user) {
+                await userCredential.user.sendEmailVerification();
+            }
+            setSuccessMessage(t('verificationEmailSentMessage'));
+            setOnSuccessAction('login');
+            setView('success');
         } catch (err: any) {
-            // Check if it looks like a Firebase error by checking for a 'code' property
             if (err && err.code) {
                 switch(err.code) {
                     case 'auth/weak-password':
-                        // The err.message from Firebase contains the specific policy violation.
-                        // We clean it by removing the error code in parentheses for better UI.
                         const cleanedMessage = err.message.replace(/\s\(auth\/[\w-]+\)\.?$/, '').trim();
                         setError([cleanedMessage]);
                         break;
@@ -85,12 +126,9 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
                         setError([t('errorEmailInUse')]);
                         break;
                     default:
-                        // For any other Firebase error, display its message directly.
-                        // This helps provide more specific feedback for unexpected errors.
                         setError([err.message || 'An error occurred during sign up. Please try again.']);
                 }
             } else {
-                // Handle non-Firebase errors
                 setError(["An unexpected error occurred during sign up."]);
             }
         }
@@ -99,15 +137,12 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
 
   const handleGoogleSignIn = async () => {
       setError([]);
-      // Fix: Use Firebase v8 GoogleAuthProvider
       const provider = new firebase.auth.GoogleAuthProvider();
       try {
-          // Fix: Use Firebase v8 signInWithPopup method
           await auth.signInWithPopup(provider);
           onLoginSuccess();
       } catch (error: any) {
-           if (error && error.code) { // Check if it's a Firebase error
-                // Don't show an error if the user just closed the popup
+           if (error && error.code) {
                 if(error.code !== 'auth/popup-closed-by-user') {
                     setError([error.message]);
                 }
@@ -116,10 +151,61 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
             }
       }
   }
+  
+  const handleSuccessContinue = () => {
+    if (onSuccessAction === 'login') {
+        onLoginSuccess();
+    } else {
+        onClose();
+    }
+  };
 
-  return (
-    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title">
-      <div className="modal-content auth-modal" onClick={(e) => e.stopPropagation()}>
+  const renderContent = () => {
+    if (view === 'success') {
+      return (
+        <>
+          <div className="auth-modal-header">
+            <SparkIcon className="sidebar-spark-icon" />
+            <h2 id="auth-dialog-title">{t('successTitle')}</h2>
+          </div>
+          <p className="auth-info">{successMessage}</p>
+          <Button onClick={handleSuccessContinue} className="auth-button">
+              {t('continueButton')}
+          </Button>
+        </>
+      );
+    }
+    
+    if (view === 'forgot') {
+      return (
+        <>
+          <div className="auth-modal-header">
+            <SparkIcon className="sidebar-spark-icon" />
+            <h2 id="auth-dialog-title">{t('resetPasswordTitle')}</h2>
+          </div>
+          <p className="auth-modal-subtitle">{t('resetPasswordSubtitle')}</p>
+          <form className="auth-form" onSubmit={handlePasswordReset}>
+            <div className="form-group-stack">
+              <label htmlFor="forgot-email">{t('emailLabel')}</label>
+              <input ref={forgotEmailRef} id="forgot-email" name="email" type="email" className="input" placeholder="email@example.com" required />
+            </div>
+            {error.length > 0 && <ul className="error-list">{error.map((err, i) => <li key={i}>{err}</li>)}</ul>}
+            <Button type="submit" className="auth-button">
+              {t('sendResetLinkButton')}
+            </Button>
+          </form>
+          <div className="auth-toggle">
+            <button onClick={() => setView('signin')} className="btn-link">
+              {t('backToSignInLink')}
+            </button>
+          </div>
+        </>
+      );
+    }
+
+    const isSignIn = view === 'signin';
+    return (
+      <>
         <div className="auth-modal-header">
           <SparkIcon className="sidebar-spark-icon" />
           <h2 id="auth-dialog-title">{t('authModalTitle')}</h2>
@@ -133,35 +219,63 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
           </div>
           <div className="form-group-stack">
             <label htmlFor="password">{t('passwordLabel')}</label>
-            <input id="password" name="password" type="password" className="input" placeholder="********" required />
+            <div className="password-input-wrapper">
+              <input
+                id="password"
+                name="password"
+                type={isPasswordVisible ? 'text' : 'password'}
+                className="input"
+                placeholder="********"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setIsPasswordVisible(!isPasswordVisible)}
+                className="password-toggle-btn"
+                aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
+              >
+                {isPasswordVisible ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
           </div>
-          {error.length > 0 && (
-            <ul className="error-list">
-                {error.map((err, index) => <li key={index}>{err}</li>)}
-            </ul>
+
+          {isSignIn && (
+            <div className="forgot-password-link-container">
+                <button type="button" onClick={() => setView('forgot')} className="btn-link">
+                    {t('forgotPasswordLink')}
+                </button>
+            </div>
           )}
+
+          {error.length > 0 && <ul className="error-list">{error.map((err, i) => <li key={i}>{err}</li>)}</ul>}
+          
           <Button type="submit" className="auth-button">
-            {authMode === 'signin' ? t('signInButton') : t('createAccountButton')}
+            {isSignIn ? t('signInButton') : t('createAccountButton')}
           </Button>
         </form>
 
         <div className="auth-toggle">
-            <span>
-                {authMode === 'signin' ? t('authModalPromptToSignUp') : t('authModalPromptToSignIn')}
-            </span>
+            <span>{isSignIn ? t('authModalPromptToSignUp') : t('authModalPromptToSignIn')}</span>
             <button onClick={handleAuthToggle} className="btn-link">
-                {authMode === 'signin' ? t('authModalActionSignUp') : t('authModalActionSignIn')}
+                {isSignIn ? t('authModalActionSignUp') : t('authModalActionSignIn')}
             </button>
         </div>
 
-        <div className="auth-divider">
-          <span className="auth-divider-text">OR</span>
-        </div>
+        <div className="auth-divider"><span className="auth-divider-text">OR</span></div>
 
         <Button variant="secondary" onClick={handleGoogleSignIn} className="auth-button google-button">
           <GoogleIcon />
           {t('signInWithGoogleButton')}
         </Button>
+      </>
+    );
+  };
+
+
+  return (
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title">
+      <div className="modal-content auth-modal" onClick={(e) => e.stopPropagation()}>
+        {renderContent()}
       </div>
     </div>
   );
