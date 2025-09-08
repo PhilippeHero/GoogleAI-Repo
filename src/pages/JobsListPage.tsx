@@ -93,6 +93,9 @@ const JobModal: FC<{
 
           <label htmlFor="description">{t('jobColumnDescription')}</label>
           <Textarea id="description" name="description" value={formData.description || ''} onChange={handleChange} placeholder="" style={{minHeight: '100px'}} />
+        
+          <label htmlFor="textExtract">{t('jobColumnTextExtract')}</label>
+          <Textarea id="textExtract" name="textExtract" value={formData.textExtract || ''} onChange={handleChange} placeholder={t('textExtractPlaceholder')} style={{minHeight: '100px'}} />
         </div>
         <div className="modal-actions">
           <Button onClick={onClose} variant="secondary">{t('cancelButton')}</Button>
@@ -224,6 +227,10 @@ const JobEditSidePane: FC<{
               <label htmlFor="edit-description">{t('jobColumnDescription')}</label>
               <Textarea id="edit-description" name="description" value={formData.description || ''} onChange={handleChange} placeholder="" />
             </div>
+            <div className="form-group-expand">
+                <label htmlFor="edit-textExtract">{t('jobColumnTextExtract')}</label>
+                <Textarea id="edit-textExtract" name="textExtract" value={formData.textExtract || ''} onChange={handleChange} placeholder={t('textExtractPlaceholder')} />
+            </div>
           </div>
         </div>
         <div className="side-pane-footer">
@@ -273,8 +280,8 @@ export const JobsListPage: FC<{
         // Sorting
         if (sortConfig !== null) {
             processableJobs.sort((a, b) => {
-                const valA = a[sortConfig.key];
-                const valB = b[sortConfig.key];
+                const valA = a[sortConfig.key] || '';
+                const valB = b[sortConfig.key] || '';
                 let comparison = 0;
                 
                 if (typeof valA === 'string' && typeof valB === 'string') {
@@ -357,7 +364,7 @@ ${jobPageContent}`;
             
             const extractedData = JSON.parse(extractResponse.text.trim());
 
-            const validatedData: ExtractedJobData = {
+            const validatedData: Omit<ExtractedJobData, 'textExtract'> = {
                 title: extractedData.title || 'N/A',
                 company: extractedData.company || 'N/A',
                 location: extractedData.location || 'N/A',
@@ -403,6 +410,7 @@ ${jobPageContent}`;
                 description: jobData.description || '',
                 url: jobData.url || '',
                 status: jobData.status || 'to apply',
+                textExtract: jobData.textExtract || '',
             };
             setJobs([newJob, ...jobs]);
         }
@@ -424,7 +432,7 @@ ${jobPageContent}`;
     };
 
     const handleExport = () => {
-        const headers = [t('jobColumnTitle'), t('jobColumnCompany'), t('jobColumnLocation'), t('jobColumnDescription'), t('jobColumnUrl'), t('jobColumnPosted'), t('jobColumnApplicationDate'), t('jobColumnStatus')];
+        const headers = [t('jobColumnTitle'), t('jobColumnCompany'), t('jobColumnLocation'), t('jobColumnDescription'), t('jobColumnTextExtract'), t('jobColumnUrl'), t('jobColumnPosted'), t('jobColumnApplicationDate'), t('jobColumnStatus')];
         const escapeCsv = (str: string) => `"${String(str || '').replace(/"/g, '""')}"`;
 
         const csvContent = [
@@ -434,6 +442,7 @@ ${jobPageContent}`;
                 escapeCsv(job.company),
                 escapeCsv(job.location),
                 escapeCsv(job.description),
+                escapeCsv(job.textExtract || ''),
                 escapeCsv(job.url),
                 escapeCsv(formatDate(job.posted)),
                 escapeCsv(formatDate(job.applicationDate)),
@@ -529,6 +538,9 @@ ${jobPageContent}`;
                                 <th style={{minWidth: '250px'}} className={getSortClasses('description')} onClick={() => requestSort('description')}>
                                   <div className="header-content"><span>{t('jobColumnDescription')}</span><SortIcon className="sort-icon" /></div>
                                 </th>
+                                <th style={{minWidth: '250px'}} className={getSortClasses('textExtract')} onClick={() => requestSort('textExtract')}>
+                                  <div className="header-content"><span>{t('jobColumnTextExtract')}</span><SortIcon className="sort-icon" /></div>
+                                </th>
                                 <th style={{minWidth: '200px'}} className={getSortClasses('url')} onClick={() => requestSort('url')}>
                                   <div className="header-content"><span>{t('jobColumnUrl')}</span><SortIcon className="sort-icon" /></div>
                                 </th>
@@ -550,6 +562,7 @@ ${jobPageContent}`;
                                     <td>{job.company}</td>
                                     <td>{job.location}</td>
                                     <td><div className="truncate-text">{job.description}</div></td>
+                                    <td><div className="truncate-text">{job.textExtract}</div></td>
                                     <td>
                                       <a href={job.url} target="_blank" rel="noopener noreferrer" className="truncate-text" onClick={(e) => e.stopPropagation()}>
                                         {job.url}

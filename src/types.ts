@@ -15,6 +15,7 @@ export type Job = {
   description: string;
   url: string;
   status: JobStatus;
+  textExtract?: string;
 };
 
 export type DocumentItem = {
