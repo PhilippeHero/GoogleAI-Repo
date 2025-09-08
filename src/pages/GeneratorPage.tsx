@@ -44,6 +44,7 @@ type GeneratorPageProps = {
     setJobDescriptionContent: React.Dispatch<React.SetStateAction<string>>;
     handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<string>>) => void;
     setIsSelectCvModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    setIsSelectJobModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
     generateContent: (language: string, maxWords: number) => Promise<void>;
     isLoading: boolean;
     keywords: string[];
@@ -63,7 +64,7 @@ type GeneratorPageProps = {
 
 export const GeneratorPage: FC<GeneratorPageProps> = ({
     t, cvContent, setCvContent, jobDescriptionContent, setJobDescriptionContent,
-    handleFileUpload, setIsSelectCvModalOpen, generateContent, isLoading,
+    handleFileUpload, setIsSelectCvModalOpen, setIsSelectJobModalOpen, generateContent, isLoading,
     keywords, setKeywords, coverLetter, setCoverLetter, shortProfile, setShortProfile,
     isInputOpen, setIsInputOpen, isOutputOpen, setIsOutputOpen, setLoadingMessage,
     isAuthenticated, openAuthModal
@@ -184,6 +185,14 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                 <h3 className="card-header">{t('jobDescriptionHeader')}</h3>
                 <div className="card-header-actions">
                 {jobDescriptionContent && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
+                <LockedButtonWrapper
+                    isAuthenticated={isAuthenticated}
+                    onClick={() => setIsSelectJobModalOpen(true)}
+                    openAuthModal={openAuthModal}
+                    t={t}
+                >
+                    <Button variant="secondary" className="btn-sm">{t('selectJobButton')}</Button>
+                </LockedButtonWrapper>
                 <LockedButtonWrapper
                     isAuthenticated={isAuthenticated}
                     onClick={() => jobUploadRef.current?.click()}
