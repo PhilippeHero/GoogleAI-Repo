@@ -32,7 +32,11 @@ const JobModal: FC<{
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => prev ? { ...prev, [name]: value } : null);
+    if (name === 'applicationDate' && value === '') {
+      setFormData(prev => prev ? { ...prev, applicationDate: null } : null);
+    } else {
+      setFormData(prev => prev ? { ...prev, [name]: value } : null);
+    }
     if (error) {
       setError('');
     }
@@ -82,7 +86,7 @@ const JobModal: FC<{
           </label>
           <div className="field-with-icon">
             <input id="applicationDate" name="applicationDate" type="date" value={formData.applicationDate || ''} onChange={handleChange} className="input" />
-            {isDateBeforeTomorrow(formData.applicationDate || '') && (
+            {isDateBeforeTomorrow(formData.applicationDate || null) && (
               <span title={t('applicationSubmittedTooltip')}>
                 <CheckCircleIcon className="checkmark-icon" />
               </span>
@@ -127,7 +131,11 @@ const JobEditSidePane: FC<{
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => prev ? { ...prev, [name]: value } : null);
+    if (name === 'applicationDate' && value === '') {
+      setFormData(prev => prev ? { ...prev, applicationDate: null } : null);
+    } else {
+      setFormData(prev => prev ? { ...prev, [name]: value } : null);
+    }
     if (error) {
         setError('');
     }
@@ -214,7 +222,7 @@ const JobEditSidePane: FC<{
                         </label>
                         <div className="field-with-icon">
                             <input id="edit-applicationDate" name="applicationDate" type="date" value={formData.applicationDate || ''} onChange={handleChange} className="input" />
-                            {isDateBeforeTomorrow(formData.applicationDate || '') && (
+                            {isDateBeforeTomorrow(formData.applicationDate) && (
                                 <span title={t('applicationSubmittedTooltip')}>
                                     <CheckCircleIcon className="checkmark-icon" />
                                 </span>
@@ -324,7 +332,7 @@ export const JobsListPage: FC<{
     
     const handleAddJob = async () => {
         if (!jobUrl) {
-            setSelectedJob({ posted: getTodayDate(), status: 'to apply', applicationDate: '' });
+            setSelectedJob({ posted: getTodayDate(), status: 'to apply', applicationDate: null });
             setIsJobModalOpen(true);
             return;
         }
@@ -387,7 +395,7 @@ ${jobPageContent}`;
                 url: jobUrl,
             };
 
-            setSelectedJob({ ...validatedData, status: 'to apply', applicationDate: '' });
+            setSelectedJob({ ...validatedData, status: 'to apply', applicationDate: null });
             setIsJobModalOpen(true);
             setJobUrl('');
 
@@ -414,7 +422,19 @@ ${jobPageContent}`;
         if (jobData.id) {
             onUpdateJob(jobData);
         } else {
-            const { id, user_id, created_at, ...newJobData } = jobData as Job;
+            const newJobData: Omit<Job, 'id' | 'user_id' | 'created_at'> = {
+                title: jobData.title || '',
+                company: jobData.company || '',
+                location: jobData.location || '',
+                posted: jobData.posted || getTodayDate(),
+                applicationDate: jobData.applicationDate || null,
+                description: jobData.description || '',
+                url: jobData.url || '',
+                status: jobData.status || 'to apply',
+                internalNotes: jobData.internalNotes || '',
+                myShortProfile: jobData.myShortProfile || '',
+                myCoverLetter: jobData.myCoverLetter || '',
+            };
             onAddJob(newJobData);
         }
         handleCloseAll();

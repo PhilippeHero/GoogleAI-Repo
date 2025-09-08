@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useState, useRef, FC, useEffect, ChangeEvent } from 'react';
+// FIX: Changed to type-only import for Supabase User type.
+import type { User } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
 import * as xlsx from 'xlsx';
@@ -10,6 +12,8 @@ import { translations } from '../../translations';
 import { DocumentItem } from '../types';
 import { formatDate } from '../utils';
 import { Card, Button, ConfirmationModal, Textarea } from '../components/ui';
+import { supabase } from '../supabase';
+import { AddDocumentModal } from '../components/AddDocumentModal';
 
 
 const documentTypes = [
@@ -37,27 +41,27 @@ const DocumentEditSidePane: FC<{
     
     useEffect(() => {
         setFormData(doc);
-
-        if (doc?.fileContent && doc?.fileMimeType) {
+        setFilePreview('');
+        
+        if (doc?.storagePath && doc?.fileMimeType) {
             setIsPreviewLoading(true);
-            setFilePreview('');
 
-            const parseContent = async () => {
+            const fetchAndParseFile = async () => {
                 try {
+                    const { data, error } = await supabase.storage.from('documents').createSignedUrl(doc.storagePath!, 60);
+                    if (error) throw error;
+                    
+                    const response = await fetch(data.signedUrl);
+                    if (!response.ok) throw new Error('Failed to download file');
+                    
+                    const arrayBuffer = await response.arrayBuffer();
                     const mimeType = doc.fileMimeType!;
-                    const content = doc.fileContent!;
-                    const base64Content = content.substring(content.indexOf(',') + 1);
                     
                     if (mimeType.startsWith('text/')) {
-                        const binaryString = atob(base64Content);
-                        const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
-                        const decoder = new TextDecoder();
-                        const textContent = decoder.decode(bytes);
-                        setFilePreview(textContent);
+                        setFilePreview(new TextDecoder().decode(arrayBuffer));
                     } else if (mimeType === 'application/pdf') {
                         setFilePreview(t('parsingFileContent'));
-                        const pdfData = atob(base64Content);
-                        const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+                        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
                         const pdf = await loadingTask.promise;
                         
                         let fullText = '';
@@ -73,13 +77,6 @@ const DocumentEditSidePane: FC<{
                         mimeType === 'application/msword'
                     ) {
                         setFilePreview(t('parsingFileContent'));
-                        const binaryString = atob(base64Content);
-                        const len = binaryString.length;
-                        const bytes = new Uint8Array(len);
-                        for (let i = 0; i < len; i++) {
-                            bytes[i] = binaryString.charCodeAt(i);
-                        }
-                        const arrayBuffer = bytes.buffer;
                         const result = await mammoth.extractRawText({ arrayBuffer });
                         setFilePreview(result.value);
                     } else if (
@@ -89,8 +86,7 @@ const DocumentEditSidePane: FC<{
                         doc.fileName?.endsWith('.xls')
                     ) {
                         setFilePreview(t('parsingFileContent'));
-                        const binaryString = atob(base64Content);
-                        const workbook = xlsx.read(binaryString, { type: 'binary' });
+                        const workbook = xlsx.read(arrayBuffer, { type: 'array' });
                         let fullText = '';
                         workbook.SheetNames.forEach(sheetName => {
                             fullText += `--- Sheet: ${sheetName} ---\n`;
@@ -109,7 +105,7 @@ const DocumentEditSidePane: FC<{
                     setIsPreviewLoading(false);
                 }
             };
-            parseContent();
+            fetchAndParseFile();
         } else if (doc) {
             setFilePreview(t('noFileUploaded'));
             setIsPreviewLoading(false);
@@ -249,15 +245,17 @@ const DocumentEditSidePane: FC<{
 export const MyDocumentsPage: FC<{
     t: (key: keyof typeof translations['EN']) => string;
     documents: DocumentItem[];
-    onAddDocument: (doc: Omit<DocumentItem, 'id' | 'user_id' | 'created_at'>) => Promise<DocumentItem | null>;
+    onDocumentAdded: (doc: DocumentItem) => void;
     onUpdateDocument: (doc: Partial<DocumentItem>) => void;
     onDeleteDocument: (docId: string) => void;
-}> = ({ t, documents, onAddDocument, onUpdateDocument, onDeleteDocument }) => {
-    const [newDocumentName, setNewDocumentName] = useState('');
-    const [newDocumentType, setNewDocumentType] = useState('cv');
+    user: User | null;
+}> = ({ t, documents, onDocumentAdded, onUpdateDocument, onDeleteDocument, user }) => {
     const [isSidePaneOpen, setIsSidePaneOpen] = useState(false);
     const [selectedDocument, setSelectedDocument] = useState<DocumentItem | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [preloadedFile, setPreloadedFile] = useState<File | null>(null);
+    const [error, setError] = useState('');
     
     const dropZoneFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -271,48 +269,43 @@ export const MyDocumentsPage: FC<{
         setSelectedDocument(null);
     };
 
-    const handleFileUpload = (docId: string, file: File) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const fileContent = e.target?.result as string;
-            const updatedDoc = {
-                id: docId,
-                fileName: file.name,
-                fileContent: fileContent,
-                fileMimeType: file.type,
-                lastUpdated: new Date().toISOString()
-            };
-            onUpdateDocument(updatedDoc);
-            
-            // If the updated doc is the one in the pane, refresh the pane's content
-            if (selectedDocument && selectedDocument.id === docId) {
-                setSelectedDocument(prev => prev ? { ...prev, ...updatedDoc } : null);
-            }
-        };
-        reader.readAsDataURL(file);
-    };
+    const handleFileUpload = async (docId: string, file: File) => {
+        if (!user) return;
 
-    const handleAddDocument = async () => {
-        if (newDocumentName.trim()) {
-            await onAddDocument({
-                name: newDocumentName,
-                type: newDocumentType,
-                textExtract: '',
-            });
-            setNewDocumentName('');
-            setNewDocumentType('cv');
-        } else {
-            const newDoc = await onAddDocument({
-                name: 'Untitled Document',
-                type: newDocumentType,
-                textExtract: '',
-            });
-            if (newDoc) {
-                setSelectedDocument(newDoc);
-                setIsSidePaneOpen(true);
+        // 1. Delete old file if it exists
+        const docToUpdate = documents.find(d => d.id === docId);
+        if (docToUpdate?.storagePath) {
+            const { error: removeError } = await supabase.storage.from('documents').remove([docToUpdate.storagePath]);
+            if (removeError) {
+                console.error("Error removing old file:", removeError);
             }
-            setNewDocumentName('');
-            setNewDocumentType('cv');
+        }
+
+        // 2. Upload new file with a unique name in the user's folder.
+        const storagePath = `${user.id}/${Date.now()}-${file.name}`;
+        const { error: uploadError } = await supabase.storage
+            .from('documents')
+            .upload(storagePath, file);
+
+        if (uploadError) {
+            console.error("Error uploading file:", uploadError);
+            // TODO: show error to user
+            return;
+        }
+        
+        // 3. Update database record
+        const updatedDoc = {
+            id: docId,
+            fileName: file.name,
+            storagePath: storagePath,
+            fileMimeType: file.type,
+            updatedAt: new Date().toISOString()
+        };
+        onUpdateDocument(updatedDoc);
+        
+        // If the updated doc is the one in the pane, refresh the pane's content
+        if (selectedDocument && selectedDocument.id === docId) {
+            setSelectedDocument(prev => prev ? { ...prev, ...updatedDoc } : null);
         }
     };
     
@@ -331,32 +324,68 @@ export const MyDocumentsPage: FC<{
         return type ? t(type.nameKey) : t('docTypeOther');
     };
 
-    const processDroppedFile = (file: File) => {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const fileContent = e.target?.result as string;
-            const docName = file.name.replace(/\.[^/.]+$/, "");
-            
-            const newDoc = await onAddDocument({
-                name: docName,
-                type: newDocumentType,
-                fileName: file.name,
-                fileContent: fileContent,
-                fileMimeType: file.type,
-                lastUpdated: new Date().toISOString(),
-                textExtract: '',
-            });
-            
-            if (newDoc) {
-                setSelectedDocument(newDoc);
-                setIsSidePaneOpen(true);
-            }
-
-            setNewDocumentName('');
-            setNewDocumentType('cv');
-        };
-        reader.readAsDataURL(file);
+    const handleOpenAddModal = () => {
+        setPreloadedFile(null);
+        setIsAddModalOpen(true);
     };
+
+    const handleAddNewDocument = async (docData: { name: string, type: string, textExtract: string }, file: File | null) => {
+        if (!user) return;
+        setError(''); // Clear previous errors
+
+        try {
+            let storagePath: string | undefined = undefined;
+            if (file) {
+                const generatedStoragePath = `${user.id}/${Date.now()}-${file.name}`;
+                const { error: uploadError } = await supabase.storage
+                    .from('documents')
+                    .upload(generatedStoragePath, file);
+        
+                if (uploadError) {
+                    throw uploadError; // Throw to be caught by the catch block
+                }
+                storagePath = generatedStoragePath;
+            }
+        
+            const dataForSupabase = {
+              user_id: user.id,
+              name: docData.name,
+              type: docData.type,
+              file_name: file?.name || null,
+              storage_path: storagePath || null,
+              file_mime_type: file?.type || null,
+              text_extract: docData.textExtract?.trim() ? docData.textExtract.trim() : null,
+            };
+    
+            const { data, error: insertError } = await supabase.from('documents').insert(dataForSupabase).select().single();
+    
+            if (insertError) {
+                throw insertError; // Throw to be caught
+            }
+    
+            if (data) {
+                // Convert back to camelCase and update parent state
+                const newDocForState: DocumentItem = {
+                    id: data.id,
+                    user_id: data.user_id,
+                    created_at: data.created_at,
+                    name: data.name,
+                    type: data.type,
+                    fileName: data.file_name,
+                    storagePath: data.storage_path,
+                    fileMimeType: data.file_mime_type,
+                    updatedAt: data.updated_at,
+                    textExtract: data.text_extract,
+                };
+                onDocumentAdded(newDocForState);
+            }
+    
+        } catch (err: any) {
+            console.error("Error adding document:", err);
+            setError(err.message || t('errorGeneric'));
+        }
+    };
+
 
     const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
@@ -373,14 +402,16 @@ export const MyDocumentsPage: FC<{
         setIsDragOver(false);
         const file = event.dataTransfer.files?.[0];
         if (file) {
-            processDroppedFile(file);
+            setPreloadedFile(file);
+            setIsAddModalOpen(true);
         }
     };
 
     const handleFileSelectFromDropZone = (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
-            processDroppedFile(file);
+            setPreloadedFile(file);
+            setIsAddModalOpen(true);
         }
         if (event.target) event.target.value = ''; // Reset file input
     };
@@ -397,40 +428,24 @@ export const MyDocumentsPage: FC<{
                 t={t}
             />
 
+            <AddDocumentModal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                onAdd={handleAddNewDocument}
+                t={t}
+                preloadedFile={preloadedFile}
+            />
+            
+            {error && <div className="error" role="alert">{error}</div>}
+
             <Card className="add-job-card">
-                <h3 className="card-header">{t('addDocumentTitle')}</h3>
-                
-                <div className="add-document-form">
-                    <div className="add-document-inputs">
-                        <div className="form-field">
-                            <input 
-                                id="newDocName"
-                                type="text" 
-                                value={newDocumentName}
-                                onChange={e => setNewDocumentName(e.target.value)}
-                                placeholder={t('documentNamePlaceholder')}
-                                className="input"
-                                onKeyDown={(e) => { if (e.key === 'Enter') handleAddDocument();}}
-                            />
-                        </div>
-                        <div className="form-field">
-                            <select
-                                id="newDocType"
-                                value={newDocumentType}
-                                onChange={(e) => setNewDocumentType(e.target.value)}
-                                className="input"
-                            >
-                                {documentTypes.map(type => (
-                                    <option key={type.id} value={type.id}>{t(type.nameKey)}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-                    <Button onClick={handleAddDocument}>
+                 <div className="card-header-wrapper">
+                    <h3 className="card-header">{t('addDocumentTitle')}</h3>
+                    <Button onClick={handleOpenAddModal} type="button">
                         {t('addDocumentButton')}
                     </Button>
                 </div>
-
+                
                 <div 
                     className={`drop-zone ${isDragOver ? 'is-drag-over' : ''}`}
                     onDragOver={handleDragOver}
@@ -472,7 +487,7 @@ export const MyDocumentsPage: FC<{
                                     <td>{getDocTypeName(doc.type)}</td>
                                     <td>{doc.fileName || '-'}</td>
                                     <td><div className="truncate-text" style={{maxWidth: '200px'}}>{doc.textExtract}</div></td>
-                                    <td>{doc.lastUpdated ? formatDate(doc.lastUpdated) : '-'}</td>
+                                    <td>{doc.updatedAt ? formatDate(doc.updatedAt) : '-'}</td>
                                 </tr>
                             ))}
                         </tbody>

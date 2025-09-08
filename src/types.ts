@@ -14,7 +14,7 @@ export type Job = {
   company: string;
   location: string;
   posted: string; // Stored as YYYY-MM-DD
-  applicationDate: string; // Stored as YYYY-MM-DD
+  applicationDate: string | null; // Stored as YYYY-MM-DD
   description: string;
   url: string;
   status: JobStatus;
@@ -30,9 +30,9 @@ export type DocumentItem = {
     name: string; // The user-defined document name, e.g., "CV for Stark Industries"
     type: string; // 'cv', 'coverLetter', etc.
     fileName?: string;
-    fileContent?: string; // Data URL of the file
+    storagePath?: string; // Path to the file in Supabase Storage
     fileMimeType?: string; // Mime type of the file
-    lastUpdated?: string; // ISO String
+    updatedAt?: string; // ISO String
     textExtract?: string;
 };
 

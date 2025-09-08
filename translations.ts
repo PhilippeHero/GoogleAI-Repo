@@ -111,7 +111,6 @@ export const translations = {
     confirmButton: 'Confirm',
     addDocumentTitle: 'Add New Document',
     documentNamePlaceholder: 'Enter document name...',
-    // Fix: Add missing translation key 'textExtractPlaceholder'
     textExtractPlaceholder: 'Enter a short summary or key points from the document...',
     addDocumentButton: 'Add Document',
     dragAndDropPrompt: 'Drag & drop a file here to upload, or click to select a file.',
@@ -194,6 +193,7 @@ export const translations = {
     profileConnectButton: 'Connect',
     profileSaveButton: 'Save Profile',
     profileUpdatedSuccess: 'Profile updated successfully!',
+    errorDocNameRequired: 'Document name is required.',
   },
   DE: {
     appTitle: 'KI-Anschreiben-Generator',
@@ -300,7 +300,6 @@ export const translations = {
     confirmButton: 'Bestätigen',
     addDocumentTitle: 'Neues Dokument hinzufügen',
     documentNamePlaceholder: 'Dokumentenname eingeben...',
-    // Fix: Add missing translation key 'textExtractPlaceholder'
     textExtractPlaceholder: 'Geben Sie eine kurze Zusammenfassung oder wichtige Punkte aus dem Dokument ein...',
     addDocumentButton: 'Dokument hinzufügen',
     dragAndDropPrompt: 'Datei hierher ziehen & ablegen oder klicken, um eine Datei auszuwählen.',
@@ -383,6 +382,7 @@ export const translations = {
     profileConnectButton: 'Verbinden',
     profileSaveButton: 'Profil speichern',
     profileUpdatedSuccess: 'Profil erfolgreich aktualisiert!',
+    errorDocNameRequired: 'Dokumentenname ist erforderlich.',
   },
   FR: {
     appTitle: 'Générateur de lettre de motivation IA',
@@ -489,7 +489,6 @@ export const translations = {
     confirmButton: 'Confirmer',
     addDocumentTitle: 'Ajouter un nouveau document',
     documentNamePlaceholder: 'Entrez le nom du document...',
-    // Fix: Add missing translation key 'textExtractPlaceholder'
     textExtractPlaceholder: 'Saisissez un bref résumé ou les points clés du document...',
     addDocumentButton: 'Ajouter un document',
     dragAndDropPrompt: 'Glissez-déposez un fichier ici pour le télécharger, ou cliquez pour sélectionner un fichier.',
@@ -572,5 +571,6 @@ export const translations = {
     profileConnectButton: 'Connecter',
     profileSaveButton: 'Enregistrer le profil',
     profileUpdatedSuccess: 'Profil mis à jour avec succès !',
+    errorDocNameRequired: 'Le nom du document est requis.',
   },
 };

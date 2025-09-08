@@ -17,7 +17,7 @@ export const SelectCvModal: FC<{
 }> = ({ isOpen, onClose, onSelect, documents, t }) => {
   if (!isOpen) return null;
 
-  const selectableCVs = documents.filter(doc => doc.type === 'cv' && (doc.fileContent || doc.textExtract));
+  const selectableCVs = documents.filter(doc => doc.type === 'cv' && (doc.storagePath || doc.textExtract));
 
   const handleSelect = (doc: DocumentItem) => {
       onSelect(doc);

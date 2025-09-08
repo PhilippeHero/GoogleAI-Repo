@@ -24,14 +24,14 @@ type LockedButtonWrapperProps = {
 const LockedButtonWrapper: FC<LockedButtonWrapperProps> = ({ isAuthenticated, onClick, openAuthModal, children, t, disabled }) => {
     if (isAuthenticated) {
         // Fix: Removed cast now that `children` is correctly typed. This resolves the error on the `onClick` prop.
-        return <>{React.cloneElement(children, { onClick: onClick, disabled: disabled })}</>;
+        return React.cloneElement(children, { onClick: onClick, disabled: disabled });
     }
 
     return (
         <div className="btn-locked-wrapper" onClick={openAuthModal}>
             <span className="btn-locked-tooltip">{t('unlockFeatureTooltip')}</span>
             {/* Fix: Removed cast and correctly accessed `children.props.children`. This resolves errors with the `disabled` prop and accessing `children`. */}
-            {React.cloneElement(children, { disabled: true, children: <><LockIcon className="locked-icon" />{ children.props.children}</> })}
+            {React.cloneElement(children, { disabled: true, children: <><LockIcon className="locked-icon" />{children.props.children}</> })}
         </div>
     );
 };

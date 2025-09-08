@@ -13,7 +13,7 @@ export const getTodayDate = () => {
     return new Date().toISOString().split('T')[0];
 };
 
-export const isDateBeforeTomorrow = (dateString: string): boolean => {
+export const isDateBeforeTomorrow = (dateString: string | null): boolean => {
   if (!dateString || !/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
     return false;
   }
@@ -33,7 +33,7 @@ export const isDateBeforeTomorrow = (dateString: string): boolean => {
 };
 
 
-export const formatDate = (isoDate: string): string => {
+export const formatDate = (isoDate: string | null): string => {
   if (!isoDate || !/^\d{4}-\d{2}-\d{2}/.test(isoDate)) { // Adjusted regex to support ISO strings
     return 'N/A';
   }

@@ -13,7 +13,7 @@ export const Card: FC<{ children: React.ReactNode, className?: string }> = ({ ch
 // Fix: Added the `type` prop to allow this component to be used as a submit button in forms.
 // Fix: Add `title` prop to support tooltips on buttons.
 export const Button: FC<{ children: React.ReactNode, onClick?: () => void, disabled?: boolean, variant?: 'primary' | 'secondary', className?: string, style?: CSSProperties, 'aria-label'?: string, type?: 'submit' | 'reset' | 'button', title?: string }> = 
-({ children, onClick, disabled, variant = 'primary', className, style, 'aria-label': ariaLabel, type, title }) => (
+({ children, onClick, disabled, variant = 'primary', className, style, 'aria-label': ariaLabel, type = 'button', title }) => (
   <button onClick={onClick} disabled={disabled} className={`btn btn-${variant} ${className || ''}`} style={style} aria-label={ariaLabel} type={type} title={title}>
     {children}
   </button>

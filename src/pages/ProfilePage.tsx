@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { FC, useState, useEffect } from 'react';
-import { User } from '@supabase/supabase-js';
+// FIX: Changed to type-only import for Supabase User type.
+import type { User } from '@supabase/supabase-js';
 import { translations, LanguageCode } from '../../translations';
 import { UserProfile, Gender, Page } from '../types';
 import { Card, Button } from '../components/ui';
@@ -47,6 +48,8 @@ export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProf
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isDirty) return;
+    
     setIsSaving(true);
     setSaveSuccess(false);
 
@@ -54,15 +57,28 @@ export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProf
       // Update Supabase Auth user metadata
       const newFullName = `${formData.firstName} ${formData.lastName}`.trim();
       if (user.user_metadata.full_name !== newFullName) {
-        const { error } = await supabase.auth.updateUser({ 
-            data: { 
-                first_name: formData.firstName,
-                last_name: formData.lastName,
-                full_name: newFullName
-            } 
+        const { error: userUpdateError } = await supabase.auth.updateUser({
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            full_name: newFullName,
+          },
         });
-        if (error) throw error;
+        if (userUpdateError) throw userUpdateError;
       }
+      
+      // Update the public.profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          default_language: formData.defaultLanguage,
+          gender: formData.gender,
+        })
+        .eq('id', user.id);
+
+      if (profileError) throw profileError;
 
       // Pass updated profile up to App state
       onSaveProfile(formData);

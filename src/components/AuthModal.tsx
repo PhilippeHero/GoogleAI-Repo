@@ -99,15 +99,15 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, t }) => {
 
         try {
             const { data, error } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: {
-                        first_name: firstName.trim(),
-                        last_name: lastName.trim(),
-                        full_name: `${firstName.trim()} ${lastName.trim()}`,
-                    }
-                }
+              email,
+              password,
+              options: {
+                data: {
+                  first_name: firstName.trim(),
+                  last_name: lastName.trim(),
+                  full_name: `${firstName.trim()} ${lastName.trim()}`,
+                },
+              }
             });
             if (error) throw error;
             

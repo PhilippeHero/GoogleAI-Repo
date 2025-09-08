@@ -8,4 +8,10 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = 'https://vfkdunbfkrvbwdueejcj.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZma2R1bmJma3J2YndkdWVlamNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTczNDQyNTQsImV4cCI6MjA3MjkyMDI1NH0.vhm-IUPErmFof0695Seff0RcgLzuhjNj27rpn-EczsQ';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    // This header helps to ensure the client always fetches the latest schema
+    // from the server, preventing errors caused by a stale schema cache.
+    headers: { 'Cache-Control': 'no-cache' },
+  },
+});

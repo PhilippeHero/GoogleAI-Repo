@@ -9,11 +9,12 @@ import saveAs from 'file-saver';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
 import * as xlsx from 'xlsx';
-import { User } from '@supabase/supabase-js';
+// FIX: Changed to type-only import for Supabase User type.
+import type { User } from '@supabase/supabase-js';
 
 import { supabase } from './supabase';
 import { translations, LanguageCode } from '../translations';
-import { Page, DocumentItem, Job, UserProfile } from './types';
+import { Page, DocumentItem, Job, UserProfile, Gender } from './types';
 import { Button, Modal, DropdownMenu, ConfirmationModal } from './components/ui';
 import { AuthModal } from './components/AuthModal';
 import { SelectCvModal } from './components/SelectCvModal';
@@ -24,6 +25,7 @@ import { GeneratorPage } from './pages/GeneratorPage';
 import { JobsListPage } from './pages/JobsListPage';
 import { MyDocumentsPage } from './pages/MyDocumentsPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { AddDocumentModal } from './components/AddDocumentModal';
 
 export const App: FC = () => {
   const DESKTOP_BREAKPOINT = 1024;
@@ -85,15 +87,36 @@ export const App: FC = () => {
   }, [theme]);
 
   // --- Data Fetching and Management ---
-  const fetchUserData = async (userId: string) => {
+  const fetchUserData = async (user: User) => {
+      const userId = user.id;
+
       const { data: jobsData, error: jobsError } = await supabase
           .from('jobs')
           .select('*')
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
 
-      if (jobsError) console.error('Error fetching jobs:', jobsError);
-      else setJobs(jobsData || []);
+      if (jobsError) {
+        console.error('Error fetching jobs:', jobsError);
+      } else {
+        const formattedJobs: Job[] = (jobsData || []).map((job: any) => ({
+            id: job.id,
+            user_id: job.user_id,
+            created_at: job.created_at,
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            posted: job.posted,
+            applicationDate: job.application_date,
+            description: job.description,
+            url: job.url,
+            status: job.status,
+            internalNotes: job.internal_notes,
+            myShortProfile: job.my_short_profile,
+            myCoverLetter: job.my_cover_letter,
+        }));
+        setJobs(formattedJobs);
+      }
 
       const { data: documentsData, error: documentsError } = await supabase
           .from('documents')
@@ -101,27 +124,75 @@ export const App: FC = () => {
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
       
-      if (documentsError) console.error('Error fetching documents:', documentsError);
-      else setDocuments(documentsData || []);
+      if (documentsError) {
+        console.error('Error fetching documents:', documentsError);
+      } else {
+        const formattedDocuments: DocumentItem[] = (documentsData || []).map((doc: any) => ({
+            id: doc.id,
+            user_id: doc.user_id,
+            created_at: doc.created_at,
+            name: doc.name,
+            type: doc.type,
+            fileName: doc.file_name,
+            storagePath: doc.storage_path,
+            fileMimeType: doc.file_mime_type,
+            updatedAt: doc.updated_at,
+            textExtract: doc.text_extract,
+        }));
+        setDocuments(formattedDocuments);
+      }
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId);
+        .eq('id', userId)
+        .maybeSingle();
       
-      if (profileError) console.error('Error fetching profiles:', profileError);
-      else if (profileData) {
-          const profiles = profileData.map(p => ({
-              uid: p.id,
-              firstName: p.first_name,
-              lastName: p.last_name,
-              defaultLanguage: p.default_language,
-              gender: p.gender,
-          }));
-          setUserProfiles(profiles);
-          // Set UI language from the first profile found
-          if(profiles[0]?.defaultLanguage) {
-            setUiLanguage(profiles[0].defaultLanguage);
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      } else if (profileData) {
+          // Profile exists, load it
+          const existingProfile = {
+              uid: profileData.id,
+              firstName: profileData.first_name,
+              lastName: profileData.last_name,
+              defaultLanguage: profileData.default_language,
+              gender: profileData.gender,
+          };
+          setUserProfiles([existingProfile]);
+          if(existingProfile.defaultLanguage) {
+            setUiLanguage(existingProfile.defaultLanguage);
+          }
+      } else {
+          // Profile does not exist, create it
+          const newProfile = {
+            id: userId,
+            first_name: user.user_metadata.first_name || '',
+            last_name: user.user_metadata.last_name || '',
+            default_language: 'DE' as LanguageCode,
+            gender: 'unspecified' as Gender,
+          };
+
+          const { data: insertedProfile, error: insertError } = await supabase
+              .from('profiles')
+              .insert(newProfile)
+              .select()
+              .single();
+          
+          if (insertError) {
+            console.error('Error creating profile:', insertError);
+          } else if (insertedProfile) {
+              const createdProfile = {
+                  uid: insertedProfile.id,
+                  firstName: insertedProfile.first_name,
+                  lastName: insertedProfile.last_name,
+                  defaultLanguage: insertedProfile.default_language,
+                  gender: insertedProfile.gender,
+              };
+              setUserProfiles([createdProfile]);
+              if (createdProfile.defaultLanguage) {
+                  setUiLanguage(createdProfile.defaultLanguage);
+              }
           }
       }
   };
@@ -138,7 +209,7 @@ export const App: FC = () => {
         const currentUser = session?.user ?? null;
         setUser(currentUser);
         if (currentUser) {
-            await fetchUserData(currentUser.id);
+            await fetchUserData(currentUser);
         }
         setIsAuthLoading(false);
     };
@@ -151,13 +222,13 @@ export const App: FC = () => {
 
         if (currentUser) {
             setIsAuthModalOpen(false); // Close auth modal on successful login
-            await fetchUserData(currentUser.id);
+            await fetchUserData(currentUser);
         } else {
             clearUserData();
         }
     });
 
-    return () => subscription.unsubscribe();
+    return () => subscription?.unsubscribe();
   }, []);
 
   const toggleTheme = () => {
@@ -180,23 +251,93 @@ export const App: FC = () => {
   
   // --- CRUD for Jobs ---
   const addJob = async (jobData: Omit<Job, 'id' | 'user_id' | 'created_at'>) => {
-    if (!user) return;
-    const { data, error } = await supabase.from('jobs').insert({ ...jobData, user_id: user.id }).select();
+    if (!user) return { data: null, error: new Error("User not authenticated") };
+
+    const dataForSupabase = {
+      title: jobData.title,
+      company: jobData.company,
+      location: jobData.location,
+      posted: jobData.posted,
+      application_date: jobData.applicationDate,
+      description: jobData.description,
+      url: jobData.url,
+      status: jobData.status,
+      internal_notes: jobData.internalNotes,
+      my_short_profile: jobData.myShortProfile,
+      my_cover_letter: jobData.myCoverLetter,
+      user_id: user.id,
+    };
+
+    const { data, error } = await supabase.from('jobs').insert(dataForSupabase).select();
+
     if (error) {
       console.error('Error adding job:', error);
     } else if (data) {
-      setJobs(prev => [data[0], ...prev]);
+      const newJobFromDb = data[0];
+      const newJobForState: Job = {
+        id: newJobFromDb.id,
+        user_id: newJobFromDb.user_id,
+        created_at: newJobFromDb.created_at,
+        title: newJobFromDb.title,
+        company: newJobFromDb.company,
+        location: newJobFromDb.location,
+        posted: newJobFromDb.posted,
+        applicationDate: newJobFromDb.application_date,
+        description: newJobFromDb.description,
+        url: newJobFromDb.url,
+        status: newJobFromDb.status,
+        internalNotes: newJobFromDb.internal_notes,
+        myShortProfile: newJobFromDb.my_short_profile,
+        myCoverLetter: newJobFromDb.my_cover_letter,
+      };
+      setJobs(prev => [newJobForState, ...prev]);
     }
     return { data, error };
   };
 
   const updateJob = async (jobData: Partial<Job>) => {
     if (!jobData.id) return;
-    const { data, error } = await supabase.from('jobs').update(jobData).eq('id', jobData.id).select();
+    
+    const dataForSupabase: { [key: string]: any } = {};
+      
+    // Map only provided fields from camelCase to snake_case
+    if (jobData.title !== undefined) dataForSupabase.title = jobData.title;
+    if (jobData.company !== undefined) dataForSupabase.company = jobData.company;
+    if (jobData.location !== undefined) dataForSupabase.location = jobData.location;
+    if (jobData.posted !== undefined) dataForSupabase.posted = jobData.posted;
+    if (jobData.description !== undefined) dataForSupabase.description = jobData.description;
+    if (jobData.url !== undefined) dataForSupabase.url = jobData.url;
+    if (jobData.status !== undefined) dataForSupabase.status = jobData.status;
+    if (jobData.internalNotes !== undefined) dataForSupabase.internal_notes = jobData.internalNotes;
+    if (jobData.myShortProfile !== undefined) dataForSupabase.my_short_profile = jobData.myShortProfile;
+    if (jobData.myCoverLetter !== undefined) dataForSupabase.my_cover_letter = jobData.myCoverLetter;
+    if (Object.prototype.hasOwnProperty.call(jobData, 'applicationDate')) {
+        dataForSupabase.application_date = jobData.applicationDate;
+    }
+
+    const { data, error } = await supabase.from('jobs').update(dataForSupabase).eq('id', jobData.id).select();
+
     if (error) {
       console.error('Error updating job:', error);
     } else if (data) {
-      setJobs(prev => prev.map(j => j.id === jobData.id ? data[0] : j));
+      const updatedJobFromDb = data[0];
+      const updatedJobForState: Job = {
+        id: updatedJobFromDb.id,
+        user_id: updatedJobFromDb.user_id,
+        created_at: updatedJobFromDb.created_at,
+        title: updatedJobFromDb.title,
+        company: updatedJobFromDb.company,
+        location: updatedJobFromDb.location,
+        posted: updatedJobFromDb.posted,
+        applicationDate: updatedJobFromDb.application_date,
+        description: updatedJobFromDb.description,
+        url: updatedJobFromDb.url,
+        status: updatedJobFromDb.status,
+        internalNotes: updatedJobFromDb.internal_notes,
+        myShortProfile: updatedJobFromDb.my_short_profile,
+        myCoverLetter: updatedJobFromDb.my_cover_letter,
+      };
+      setJobs(prev => prev.map(j => j.id === jobData.id ? updatedJobForState : j));
     }
   };
 
@@ -210,36 +351,66 @@ export const App: FC = () => {
   };
 
   // --- CRUD for Documents ---
-  const addDocument = async (docData: Omit<DocumentItem, 'id' | 'user_id' | 'created_at'>) => {
-    if (!user) return null;
-    const { data, error } = await supabase.from('documents').insert({ ...docData, user_id: user.id }).select();
-    if (error) {
-      console.error('Error adding document:', error);
-      return null;
-    }
-    if (data) {
-        setDocuments(prev => [data[0], ...prev]);
-        return data[0];
-    }
-    return null;
+  const handleDocumentAdded = (newDoc: DocumentItem) => {
+    setDocuments(prev => [newDoc, ...prev]);
   };
 
   const updateDocument = async (docData: Partial<DocumentItem>) => {
     if (!docData.id) return;
-    const { data, error } = await supabase.from('documents').update(docData).eq('id', docData.id).select();
+
+    const dataForSupabase: { [key: string]: any } = {};
+    if (docData.name !== undefined) dataForSupabase.name = docData.name;
+    if (docData.type !== undefined) dataForSupabase.type = docData.type;
+    if (docData.fileName !== undefined) dataForSupabase.file_name = docData.fileName;
+    if (docData.storagePath !== undefined) dataForSupabase.storage_path = docData.storagePath;
+    if (docData.fileMimeType !== undefined) dataForSupabase.file_mime_type = docData.fileMimeType;
+    if (docData.updatedAt !== undefined) dataForSupabase.updated_at = docData.updatedAt;
+    if (docData.textExtract !== undefined) dataForSupabase.text_extract = docData.textExtract;
+
+    const { data, error } = await supabase.from('documents').update(dataForSupabase).eq('id', docData.id).select();
+    
     if (error) {
       console.error('Error updating document:', error);
     } else if (data) {
-      setDocuments(prev => prev.map(d => d.id === docData.id ? data[0] : d));
+      const updatedDocFromDb = data[0];
+      const updatedDocForState: DocumentItem = {
+          id: updatedDocFromDb.id,
+          user_id: updatedDocFromDb.user_id,
+          created_at: updatedDocFromDb.created_at,
+          name: updatedDocFromDb.name,
+          type: updatedDocFromDb.type,
+          fileName: updatedDocFromDb.file_name,
+          storagePath: updatedDocFromDb.storage_path,
+          fileMimeType: updatedDocFromDb.file_mime_type,
+          updatedAt: updatedDocFromDb.updated_at,
+          textExtract: updatedDocFromDb.text_extract,
+      };
+      setDocuments(prev => prev.map(d => d.id === docData.id ? updatedDocForState : d));
     }
   };
 
   const deleteDocument = async (docId: string) => {
+    // 1. Find the document to get its file path
+    const docToDelete = documents.find(d => d.id === docId);
+    if (docToDelete && docToDelete.storagePath) {
+        // 2. Delete the file from storage
+        const { error: storageError } = await supabase.storage
+            .from('documents')
+            .remove([docToDelete.storagePath]);
+        
+        if (storageError) {
+            console.error('Error deleting file from storage:', storageError);
+            // Optionally, stop here and show an error to the user
+            // For now, we'll proceed to delete the DB record anyway
+        }
+    }
+
+    // 3. Delete the database record
     const { error } = await supabase.from('documents').delete().eq('id', docId);
     if (error) {
-      console.error('Error deleting document:', error);
+        console.error('Error deleting document:', error);
     } else {
-      setDocuments(prev => prev.filter(d => d.id !== docId));
+        setDocuments(prev => prev.filter(d => d.id !== docId));
     }
   };
 
@@ -315,24 +486,35 @@ export const App: FC = () => {
   const handleSelectCv = async (doc: DocumentItem) => {
     setError('');
 
-    // Prioritize file content if it exists
-    if (doc.fileContent && doc.fileMimeType) {
+    // Prioritize file if it exists in storage
+    if (doc.storagePath && doc.fileMimeType) {
         try {
-            if (doc.fileMimeType.startsWith('text/')) {
-                const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
-                const binaryString = atob(base64Content);
-                const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
-                const decoder = new TextDecoder();
-                setCvContent(decoder.decode(bytes));
+            setLoadingMessage(t('parsingFileContent'));
+            setIsLoading(true);
+
+            // 1. Get a temporary URL to download the file
+            const { data, error: urlError } = await supabase.storage
+                .from('documents')
+                .createSignedUrl(doc.storagePath, 60); // URL is valid for 60 seconds
+
+            if (urlError) throw urlError;
+            if (!data) throw new Error("Could not create signed URL.");
+
+            // 2. Fetch the file content from the URL
+            const response = await fetch(data.signedUrl);
+            if (!response.ok) throw new Error("Failed to download file from storage.");
+
+            const mimeType = doc.fileMimeType;
+            const arrayBuffer = await response.arrayBuffer();
+
+            // 3. Parse content based on MIME type
+            if (mimeType.startsWith('text/') || doc.fileName?.endsWith('.md')) {
+                const textContent = new TextDecoder().decode(arrayBuffer);
+                setCvContent(textContent);
             } 
-            else if (doc.fileMimeType === 'application/pdf') {
-                setLoadingMessage(t('extractingPdfText'));
-                setIsLoading(true);
-                
-                const pdfData = atob(doc.fileContent.substring(doc.fileContent.indexOf(',') + 1));
-                const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+            else if (mimeType === 'application/pdf') {
+                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
                 const pdf = await loadingTask.promise;
-                
                 let fullText = '';
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);
@@ -343,35 +525,21 @@ export const App: FC = () => {
                 setCvContent(fullText.trim());
             }
             else if (
-                doc.fileMimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                doc.fileMimeType === 'application/msword' ||
+                mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                mimeType === 'application/msword' ||
                 doc.fileName?.endsWith('.docx') ||
                 doc.fileName?.endsWith('.doc')
             ) {
-                setLoadingMessage(t('extractingDocxText'));
-                setIsLoading(true);
-                const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
-                const binaryString = atob(base64Content);
-                const len = binaryString.length;
-                const bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                const arrayBuffer = bytes.buffer;
                 const result = await mammoth.extractRawText({ arrayBuffer });
                 setCvContent(result.value);
             }
             else if (
-                doc.fileMimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-                doc.fileMimeType === 'application/vnd.ms-excel' ||
+                mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                mimeType === 'application/vnd.ms-excel' ||
                 doc.fileName?.endsWith('.xlsx') ||
                 doc.fileName?.endsWith('.xls')
             ) {
-                setLoadingMessage(t('extractingXlsxText'));
-                setIsLoading(true);
-                const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
-                const binaryString = atob(base64Content);
-                const workbook = xlsx.read(binaryString, { type: 'binary' });
+                const workbook = xlsx.read(arrayBuffer, { type: 'array' });
                 let fullText = '';
                 workbook.SheetNames.forEach(sheetName => {
                     const worksheet = workbook.Sheets[sheetName];
@@ -379,28 +547,18 @@ export const App: FC = () => {
                     fullText += sheetData + '\n';
                 });
                 setCvContent(fullText.trim());
-            }
-            else {
-                const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
-                const binaryString = atob(base64Content);
-                const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
-                const decoder = new TextDecoder();
-                const textContent = decoder.decode(bytes);
-
-                if (textContent.length > 0 && !textContent.startsWith('%PDF-')) {
-                     setCvContent(textContent);
-                } else {
-                     throw new Error("Unsupported file type for text extraction.");
-                }
+            } else {
+                throw new Error("Unsupported file type for text extraction.");
             }
         } catch (e) {
-            console.error("Failed to extract content from selected file:", e);
+            console.error("Failed to download or parse file from storage:", e);
             setError(t('errorParsingFile'));
         } finally {
             setIsLoading(false);
+            setLoadingMessage('');
         }
     }
-    // Fallback to textExtract if no file content
+    // Fallback to textExtract if no file
     else if (doc.textExtract) {
         setCvContent(doc.textExtract);
     }
@@ -585,9 +743,10 @@ ${extractedKeywords.join(', ')}`;
               return <MyDocumentsPage 
                         t={t}
                         documents={documents}
-                        onAddDocument={addDocument}
+                        onDocumentAdded={handleDocumentAdded}
                         onUpdateDocument={updateDocument}
                         onDeleteDocument={deleteDocument}
+                        user={user}
                      />;
           case 'profile':
               const currentUserProfile = user ? userProfiles.find(p => p.uid === user.id) : null;
