@@ -15,9 +15,9 @@ export type Job = {
   description: string;
   url: string;
   status: JobStatus;
-  textExtract?: string;
-  shortProfile?: string;
-  coverLetter?: string;
+  internalNotes?: string;
+  myShortProfile?: string;
+  myCoverLetter?: string;
 };
 
 export type DocumentItem = {

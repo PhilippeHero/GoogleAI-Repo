@@ -63,6 +63,8 @@ type GeneratorPageProps = {
     setJobs: React.Dispatch<React.SetStateAction<Job[]>>;
     isAuthenticated: boolean;
     openAuthModal: () => void;
+    sourceJob: Job | null;
+    setSourceJob: React.Dispatch<React.SetStateAction<Job | null>>;
 }
 
 export const GeneratorPage: FC<GeneratorPageProps> = ({
@@ -70,12 +72,12 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
     handleFileUpload, setIsSelectCvModalOpen, setIsSelectJobModalOpen, generateContent, isLoading,
     keywords, setKeywords, coverLetter, setCoverLetter, shortProfile, setShortProfile,
     isInputOpen, setIsInputOpen, isOutputOpen, setIsOutputOpen, setLoadingMessage,
-    jobs, setJobs, isAuthenticated, openAuthModal
+    jobs, setJobs, isAuthenticated, openAuthModal, sourceJob, setSourceJob
 }) => {
     const [maxWords, setMaxWords] = useState(150);
     const [language, setLanguage] = useState('German');
     
-    const [contentToSave, setContentToSave] = useState<{ type: 'shortProfile' | 'coverLetter', content: string } | null>(null);
+    const [contentToSave, setContentToSave] = useState<{ type: 'myShortProfile' | 'myCoverLetter', content: string } | null>(null);
     const [isSelectJobToSaveModalOpen, setIsSelectJobToSaveModalOpen] = useState(false);
 
     const cvUploadRef = useRef<HTMLInputElement>(null);
@@ -140,8 +142,8 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
         generateContent(language, maxWords);
     };
 
-    const handleOpenSaveToJobModal = (type: 'shortProfile' | 'coverLetter') => {
-        const content = type === 'shortProfile' ? shortProfile : coverLetter;
+    const handleOpenSaveToJobModal = (type: 'myShortProfile' | 'myCoverLetter') => {
+        const content = type === 'myShortProfile' ? shortProfile : coverLetter;
         if (content) {
             setContentToSave({ type, content });
             setIsSelectJobToSaveModalOpen(true);
@@ -169,6 +171,7 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
             onSelect={handleSaveContentToJob}
             jobs={jobs}
             t={t}
+            recommendedJobId={sourceJob?.id}
         />
         <p className="workflow-description">{t('workflowDescription')}</p>
         <Collapsible title={t('inputFilesTitle')} isOpen={isInputOpen} onToggle={() => setIsInputOpen(!isInputOpen)}>
@@ -224,7 +227,7 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                 >
                     <Button variant="secondary" className="btn-sm">{t('uploadFileButton')}</Button>
                 </LockedButtonWrapper>
-                {jobDescriptionContent && <Button variant="secondary" onClick={() => setJobDescriptionContent('')} className="btn-sm">{t('clearButton')}</Button>}
+                {jobDescriptionContent && <Button variant="secondary" onClick={() => { setJobDescriptionContent(''); setSourceJob(null); }} className="btn-sm">{t('clearButton')}</Button>}
                 </div>
             </div>
             <Textarea 
@@ -294,7 +297,7 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                     {shortProfile && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
                     <LockedButtonWrapper
                         isAuthenticated={isAuthenticated}
-                        onClick={() => handleOpenSaveToJobModal('shortProfile')}
+                        onClick={() => handleOpenSaveToJobModal('myShortProfile')}
                         openAuthModal={openAuthModal}
                         t={t}
                         disabled={!shortProfile}
@@ -329,7 +332,7 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                     {coverLetter && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
                     <LockedButtonWrapper
                         isAuthenticated={isAuthenticated}
-                        onClick={() => handleOpenSaveToJobModal('coverLetter')}
+                        onClick={() => handleOpenSaveToJobModal('myCoverLetter')}
                         openAuthModal={openAuthModal}
                         t={t}
                         disabled={!coverLetter}

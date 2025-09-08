@@ -94,8 +94,8 @@ const JobModal: FC<{
           <label htmlFor="description">{t('jobColumnDescription')}</label>
           <Textarea id="description" name="description" value={formData.description || ''} onChange={handleChange} placeholder="" style={{minHeight: '100px'}} />
         
-          <label htmlFor="textExtract">{t('jobColumnTextExtract')}</label>
-          <Textarea id="textExtract" name="textExtract" value={formData.textExtract || ''} onChange={handleChange} placeholder={t('textExtractPlaceholder')} style={{minHeight: '100px'}} />
+          <label htmlFor="internalNotes">{t('jobColumnInternalNotes')}</label>
+          <Textarea id="internalNotes" name="internalNotes" value={formData.internalNotes || ''} onChange={handleChange} placeholder={t('internalNotesPlaceholder')} style={{minHeight: '100px'}} />
         </div>
         <div className="modal-actions">
           <Button onClick={onClose} variant="secondary">{t('cancelButton')}</Button>
@@ -232,16 +232,16 @@ const JobEditSidePane: FC<{
             <div className="side-pane-column">
               <div className="form-group-stack">
                 <div className="form-group-expand">
-                    <label htmlFor="edit-textExtract">{t('jobColumnTextExtract')}</label>
-                    <Textarea id="edit-textExtract" name="textExtract" value={formData.textExtract || ''} onChange={handleChange} placeholder={t('textExtractPlaceholder')} />
+                    <label htmlFor="edit-internalNotes">{t('jobColumnInternalNotes')}</label>
+                    <Textarea id="edit-internalNotes" name="internalNotes" value={formData.internalNotes || ''} onChange={handleChange} placeholder={t('internalNotesPlaceholder')} />
                 </div>
                 <div className="form-group-expand">
-                    <label htmlFor="edit-shortProfile">{t('jobColumnShortProfile')}</label>
-                    <Textarea id="edit-shortProfile" name="shortProfile" value={formData.shortProfile || ''} onChange={handleChange} placeholder="" />
+                    <label htmlFor="edit-myShortProfile">{t('jobColumnMyShortProfile')}</label>
+                    <Textarea id="edit-myShortProfile" name="myShortProfile" value={formData.myShortProfile || ''} onChange={handleChange} placeholder="" />
                 </div>
                 <div className="form-group-expand" style={{ flexGrow: 2 }}>
-                    <label htmlFor="edit-coverLetter">{t('jobColumnCoverLetter')}</label>
-                    <Textarea id="edit-coverLetter" name="coverLetter" value={formData.coverLetter || ''} onChange={handleChange} placeholder="" />
+                    <label htmlFor="edit-myCoverLetter">{t('jobColumnMyCoverLetter')}</label>
+                    <Textarea id="edit-myCoverLetter" name="myCoverLetter" value={formData.myCoverLetter || ''} onChange={handleChange} placeholder="" />
                 </div>
               </div>
             </div>
@@ -378,7 +378,7 @@ ${jobPageContent}`;
             
             const extractedData = JSON.parse(extractResponse.text.trim());
 
-            const validatedData: Omit<ExtractedJobData, 'textExtract'> = {
+            const validatedData: Omit<ExtractedJobData, 'internalNotes'> = {
                 title: extractedData.title || 'N/A',
                 company: extractedData.company || 'N/A',
                 location: extractedData.location || 'N/A',
@@ -424,9 +424,9 @@ ${jobPageContent}`;
                 description: jobData.description || '',
                 url: jobData.url || '',
                 status: jobData.status || 'to apply',
-                textExtract: jobData.textExtract || '',
-                shortProfile: jobData.shortProfile || '',
-                coverLetter: jobData.coverLetter || '',
+                internalNotes: jobData.internalNotes || '',
+                myShortProfile: jobData.myShortProfile || '',
+                myCoverLetter: jobData.myCoverLetter || '',
             };
             setJobs([newJob, ...jobs]);
         }
@@ -448,7 +448,7 @@ ${jobPageContent}`;
     };
 
     const handleExport = () => {
-        const headers = [t('jobColumnTitle'), t('jobColumnCompany'), t('jobColumnLocation'), t('jobColumnDescription'), t('jobColumnTextExtract'), t('jobColumnUrl'), t('jobColumnPosted'), t('jobColumnApplicationDate'), t('jobColumnStatus')];
+        const headers = [t('jobColumnTitle'), t('jobColumnCompany'), t('jobColumnLocation'), t('jobColumnDescription'), t('jobColumnInternalNotes'), t('jobColumnUrl'), t('jobColumnPosted'), t('jobColumnApplicationDate'), t('jobColumnStatus')];
         const escapeCsv = (str: string) => `"${String(str || '').replace(/"/g, '""')}"`;
 
         const csvContent = [
@@ -458,7 +458,7 @@ ${jobPageContent}`;
                 escapeCsv(job.company),
                 escapeCsv(job.location),
                 escapeCsv(job.description),
-                escapeCsv(job.textExtract || ''),
+                escapeCsv(job.internalNotes || ''),
                 escapeCsv(job.url),
                 escapeCsv(formatDate(job.posted)),
                 escapeCsv(formatDate(job.applicationDate)),
@@ -554,8 +554,8 @@ ${jobPageContent}`;
                                 <th style={{minWidth: '250px'}} className={getSortClasses('description')} onClick={() => requestSort('description')}>
                                   <div className="header-content"><span>{t('jobColumnDescription')}</span><SortIcon className="sort-icon" /></div>
                                 </th>
-                                <th style={{minWidth: '250px'}} className={getSortClasses('textExtract')} onClick={() => requestSort('textExtract')}>
-                                  <div className="header-content"><span>{t('jobColumnTextExtract')}</span><SortIcon className="sort-icon" /></div>
+                                <th style={{minWidth: '250px'}} className={getSortClasses('internalNotes')} onClick={() => requestSort('internalNotes')}>
+                                  <div className="header-content"><span>{t('jobColumnInternalNotes')}</span><SortIcon className="sort-icon" /></div>
                                 </th>
                                 <th style={{minWidth: '200px'}} className={getSortClasses('url')} onClick={() => requestSort('url')}>
                                   <div className="header-content"><span>{t('jobColumnUrl')}</span><SortIcon className="sort-icon" /></div>
@@ -578,7 +578,7 @@ ${jobPageContent}`;
                                     <td>{job.company}</td>
                                     <td>{job.location}</td>
                                     <td><div className="truncate-text">{job.description}</div></td>
-                                    <td><div className="truncate-text">{job.textExtract}</div></td>
+                                    <td><div className="truncate-text">{job.internalNotes}</div></td>
                                     <td>
                                       <a href={job.url} target="_blank" rel="noopener noreferrer" className="truncate-text" onClick={(e) => e.stopPropagation()}>
                                         {job.url}

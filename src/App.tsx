@@ -29,11 +29,11 @@ import { JobsListPage } from './pages/JobsListPage';
 import { MyDocumentsPage } from './pages/MyDocumentsPage';
 
 const initialJobs: Job[] = [
-    { id: 1, title: 'Senior Frontend Engineer', company: 'Stark Industries', location: 'New York, NY', posted: getInitialDate(2), applicationDate: getInitialDate(1), url: 'https://example.com/job/1', description: 'Seeking a talented frontend engineer to build next-generation UIs for our advanced projects. Must be proficient in React and Stark-Tech.', status: 'applied', textExtract: 'Followed up via email on ' + getInitialDate(0) + '. Recruiter mentioned a 2-week timeline.', shortProfile: '', coverLetter: '' },
-    { id: 2, title: 'Product Manager', company: 'Wayne Enterprises', location: 'Gotham City', posted: getInitialDate(3), applicationDate: getInitialDate(2), url: 'https://example.com/job/2', description: 'Lead the product development lifecycle for our new line of public safety solutions. Experience in hardware and software is a plus.', status: 'applied', textExtract: '', shortProfile: '', coverLetter: '' },
-    { id: 3, title: 'UX/UI Designer', company: 'Cyberdyne Systems', location: 'Sunnyvale, CA', posted: getInitialDate(7), applicationDate: '', url: 'https://example.com/job/3', description: 'Design intuitive and engaging user experiences for our global defense network. Strong portfolio in complex systems required.', status: 'to apply', textExtract: 'Need to tailor my portfolio before applying. Focus on the Skynet project.', shortProfile: '', coverLetter: '' },
-    { id: 4, title: 'Backend Developer (Go)', company: 'Oscorp', location: 'New York, NY', posted: getInitialDate(8), applicationDate: getInitialDate(5), url: 'https://example.com/job/4', description: 'Develop and maintain high-performance backend services for genetic research applications. Experience with large-scale databases is essential.', status: 'applied', textExtract: '', shortProfile: '', coverLetter: '' },
-    { id: 5, title: 'Data Scientist', company: 'Tyrell Corporation', location: 'Los Angeles, CA', posted: getInitialDate(14), applicationDate: '', url: 'https://example.com/job/5', description: 'Analyze and interpret complex data sets to create more-human-than-human replicants. Advanced degree in a quantitative field preferred.', status: 'to apply', textExtract: '', shortProfile: '', coverLetter: '' },
+    { id: 1, title: 'Senior Frontend Engineer', company: 'Stark Industries', location: 'New York, NY', posted: getInitialDate(2), applicationDate: getInitialDate(1), url: 'https://example.com/job/1', description: 'Seeking a talented frontend engineer to build next-generation UIs for our advanced projects. Must be proficient in React and Stark-Tech.', status: 'applied', internalNotes: 'Followed up via email on ' + getInitialDate(0) + '. Recruiter mentioned a 2-week timeline.', myShortProfile: '', myCoverLetter: '' },
+    { id: 2, title: 'Product Manager', company: 'Wayne Enterprises', location: 'Gotham City', posted: getInitialDate(3), applicationDate: getInitialDate(2), url: 'https://example.com/job/2', description: 'Lead the product development lifecycle for our new line of public safety solutions. Experience in hardware and software is a plus.', status: 'applied', internalNotes: '', myShortProfile: '', myCoverLetter: '' },
+    { id: 3, title: 'UX/UI Designer', company: 'Cyberdyne Systems', location: 'Sunnyvale, CA', posted: getInitialDate(7), applicationDate: '', url: 'https://example.com/job/3', description: 'Design intuitive and engaging user experiences for our global defense network. Strong portfolio in complex systems required.', status: 'to apply', internalNotes: 'Need to tailor my portfolio before applying. Focus on the Skynet project.', myShortProfile: '', myCoverLetter: '' },
+    { id: 4, title: 'Backend Developer (Go)', company: 'Oscorp', location: 'New York, NY', posted: getInitialDate(8), applicationDate: getInitialDate(5), url: 'https://example.com/job/4', description: 'Develop and maintain high-performance backend services for genetic research applications. Experience with large-scale databases is essential.', status: 'applied', internalNotes: '', myShortProfile: '', myCoverLetter: '' },
+    { id: 5, title: 'Data Scientist', company: 'Tyrell Corporation', location: 'Los Angeles, CA', posted: getInitialDate(14), applicationDate: '', url: 'https://example.com/job/5', description: 'Analyze and interpret complex data sets to create more-human-than-human replicants. Advanced degree in a quantitative field preferred.', status: 'to apply', internalNotes: '', myShortProfile: '', myCoverLetter: '' },
 ];
 
 const initialDocuments: DocumentItem[] = [
@@ -71,6 +71,7 @@ export const App: FC = () => {
   const [shortProfile, setShortProfile] = useState(() => localStorage.getItem('shortProfile') || '');
   const [isInputOpen, setIsInputOpen] = useState(true);
   const [isOutputOpen, setIsOutputOpen] = useState(false);
+  const [sourceJob, setSourceJob] = useState<Job | null>(null);
 
   // Shared State
   const [documents, setDocuments] = useState<DocumentItem[]>(() => {
@@ -312,6 +313,7 @@ export const App: FC = () => {
   
   const handleSelectJob = (job: Job) => {
     setJobDescriptionContent(job.description);
+    setSourceJob(job);
     setIsSelectJobModalOpen(false);
   };
 
@@ -471,6 +473,8 @@ ${extractedKeywords.join(', ')}`;
                         setJobs={setJobs}
                         isAuthenticated={isAuthenticated}
                         openAuthModal={() => setIsAuthModalOpen(true)}
+                        sourceJob={sourceJob}
+                        setSourceJob={setSourceJob}
                       />;
           case 'jobs':
               return <JobsListPage t={t} jobs={jobs} setJobs={setJobs} />;

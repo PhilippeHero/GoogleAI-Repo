@@ -1146,15 +1146,22 @@ textarea[readonly]:focus {
 .selection-list button {
     width: 100%;
     background: none;
-    border: none;
+    border: 1px solid transparent; /* Add for smooth transition */
     text-align: left;
     padding: 1rem;
     cursor: pointer;
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    justify-content: space-between;
+    align-items: center;
     font-family: inherit;
     color: hsl(var(--foreground));
+    transition: background-color 0.1s, border-color 0.1s;
+}
+
+.selection-list button > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
 }
 
 .selection-list button:hover {
@@ -1168,6 +1175,23 @@ textarea[readonly]:focus {
 .selection-list-filename {
     font-size: 0.8rem;
     color: hsl(var(--muted-foreground));
+}
+
+.selection-list button.recommended {
+    background-color: hsla(var(--primary), 0.05);
+    border-color: hsla(var(--primary), 0.2);
+}
+
+.selection-list button.recommended:hover {
+    background-color: hsla(var(--primary), 0.1);
+}
+
+.recommended-indicator {
+    font-size: 1rem;
+    font-weight: 600;
+    color: hsl(var(--primary));
+    flex-shrink: 0;
+    padding-left: 1rem;
 }
 
 .selection-modal p {
