@@ -9,7 +9,6 @@ import saveAs from 'file-saver';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
 import * as xlsx from 'xlsx';
-// FIX: Changed to type-only import for Supabase User type.
 import type { User } from '@supabase/supabase-js';
 
 import { supabase } from './supabase';
@@ -240,12 +239,12 @@ export const App: FC = () => {
   };
   
   const handleConfirmLogout = async () => {
-      try {
-          await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+          console.error("Error signing out: ", error);
+      } else {
           setIsLogoutConfirmOpen(false);
           setCurrentPage('landing'); // Redirect to landing page on logout
-      } catch (error) {
-          console.error("Error signing out: ", error);
       }
   };
   

@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useState, useRef, FC, useEffect, ChangeEvent } from 'react';
-// FIX: Changed to type-only import for Supabase User type.
 import type { User } from '@supabase/supabase-js';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';

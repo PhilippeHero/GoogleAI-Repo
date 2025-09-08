@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { FC, useState, useEffect } from 'react';
-// FIX: Changed to type-only import for Supabase User type.
 import type { User } from '@supabase/supabase-js';
 import { translations, LanguageCode } from '../../translations';
 import { UserProfile, Gender, Page } from '../types';
