@@ -281,6 +281,7 @@ h1 {
   margin: 0 auto;
 }
 
+.main-content.page-generator,
 .main-content.page-jobs,
 .main-content.page-documents {
   max-width: 1380px;
