@@ -283,7 +283,8 @@ h1 {
 
 .main-content.page-generator,
 .main-content.page-jobs,
-.main-content.page-documents {
+.main-content.page-documents,
+.main-content.page-profile {
   max-width: 1380px;
   margin: 0;
 }
@@ -665,6 +666,7 @@ textarea[readonly]:focus {
 .modal-actions {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     gap: 1rem;
     margin-top: 2rem;
     width: 100%;
@@ -1865,4 +1867,105 @@ textarea[readonly]:focus {
 .password-toggle-btn svg {
   width: 1.125rem;
   height: 1.125rem;
+}
+
+/* Profile Page Styles */
+.profile-page-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+.profile-card h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 1.5rem 0;
+  color: hsl(var(--primary));
+  border-bottom: 1px solid hsl(var(--border));
+  padding-bottom: 1rem;
+}
+
+.profile-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem 2rem;
+}
+
+.profile-form-grid .form-group-stack {
+    gap: 0.5rem;
+}
+
+.profile-card .modal-actions {
+    margin-top: 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid hsl(var(--border));
+    width: auto;
+    margin-right: -1.5rem;
+    margin-bottom: -1.5rem;
+    margin-left: -1.5rem;
+    padding: 1rem 1.5rem;
+    background-color: hsl(var(--card));
+    border-bottom-left-radius: calc(var(--radius) + 0.25rem);
+    border-bottom-right-radius: calc(var(--radius) + 0.25rem);
+    justify-content: space-between;
+}
+
+.modal-actions-right-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.service-connection-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+}
+
+.service-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.service-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0.5rem;
+    border-radius: 9999px;
+    background-color: hsl(var(--secondary));
+    color: hsl(var(--muted-foreground));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.service-icon.gdrive { color: #4285F4; }
+
+.service-details h4 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.service-details p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+}
+
+.profile-save-feedback {
+    color: hsl(var(--success));
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .profile-form-grid {
+        grid-template-columns: 1fr;
+    }
 }

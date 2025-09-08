@@ -16,9 +16,9 @@ import firebase from 'firebase/compat/app';
 import { auth } from './firebase';
 
 import { translations, LanguageCode } from '../translations';
-import { Page, DocumentItem, Job } from './types';
+import { Page, DocumentItem, Job, UserProfile } from './types';
 import { getInitialDate } from './utils';
-import { Button, Modal, DropdownMenu } from './components/ui';
+import { Button, Modal, DropdownMenu, ConfirmationModal } from './components/ui';
 import { AuthModal } from './components/AuthModal';
 import { SelectCvModal } from './components/SelectCvModal';
 import { SelectJobModal } from './components/SelectJobModal';
@@ -27,6 +27,7 @@ import { LandingPage } from './pages/LandingPage';
 import { GeneratorPage } from './pages/GeneratorPage';
 import { JobsListPage } from './pages/JobsListPage';
 import { MyDocumentsPage } from './pages/MyDocumentsPage';
+import { ProfilePage } from './pages/ProfilePage';
 
 const initialJobs: Job[] = [
     { id: 1, title: 'Senior Frontend Engineer', company: 'Stark Industries', location: 'New York, NY', posted: getInitialDate(2), applicationDate: getInitialDate(1), url: 'https://example.com/job/1', description: 'Seeking a talented frontend engineer to build next-generation UIs for our advanced projects. Must be proficient in React and Stark-Tech.', status: 'applied', internalNotes: 'Followed up via email on ' + getInitialDate(0) + '. Recruiter mentioned a 2-week timeline.', myShortProfile: '', myCoverLetter: '' },
@@ -59,6 +60,7 @@ export const App: FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const isAuthenticated = !!user;
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   
   // Generator State
   const [cvContent, setCvContent] = useState(() => localStorage.getItem('cvContent') || '');
@@ -85,6 +87,10 @@ export const App: FC = () => {
     }
     return initialJobs;
   });
+  const [userProfiles, setUserProfiles] = useState<UserProfile[]>(() => {
+    const savedProfiles = localStorage.getItem('userProfiles');
+    return savedProfiles ? JSON.parse(savedProfiles) : [];
+  });
   const [isSelectCvModalOpen, setIsSelectCvModalOpen] = useState(false);
   const [isSelectJobModalOpen, setIsSelectJobModalOpen] = useState(false);
 
@@ -109,14 +115,31 @@ export const App: FC = () => {
   }, [theme]);
 
   useEffect(() => {
-    // Fix: Use Firebase v8 onAuthStateChanged method
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
         setUser(currentUser);
+        if (currentUser) {
+            // Check if a profile exists, if not, create one
+            const profileExists = userProfiles.some(p => p.uid === currentUser.uid);
+            if (!profileExists) {
+                const nameParts = currentUser.displayName?.split(' ') || [];
+                const firstName = nameParts[0] || '';
+                const lastName = nameParts.slice(1).join(' ') || '';
+
+                const newProfile: UserProfile = {
+                    uid: currentUser.uid,
+                    firstName: firstName,
+                    lastName: lastName,
+                    defaultLanguage: uiLanguage,
+                    gender: 'unspecified',
+                };
+                setUserProfiles(prev => [...prev, newProfile]);
+            }
+        }
         setIsAuthLoading(false);
     });
-    // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
 
   // Persist generator content to localStorage
   useEffect(() => { localStorage.setItem('cvContent', cvContent); }, [cvContent]);
@@ -126,6 +149,7 @@ export const App: FC = () => {
   useEffect(() => { localStorage.setItem('shortProfile', shortProfile); }, [shortProfile]);
   useEffect(() => { localStorage.setItem('jobs', JSON.stringify(jobs)); }, [jobs]);
   useEffect(() => { localStorage.setItem('documents', JSON.stringify(documents)); }, [documents]);
+  useEffect(() => { localStorage.setItem('userProfiles', JSON.stringify(userProfiles)); }, [userProfiles]);
 
 
   const toggleTheme = () => {
@@ -138,11 +162,15 @@ export const App: FC = () => {
       setIsAuthModalOpen(false);
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
+    setIsLogoutConfirmOpen(true);
+  };
+  
+  const handleConfirmLogout = async () => {
       try {
-          // Fix: Use Firebase v8 signOut method
           await auth.signOut();
-          // user state will be updated to null by onAuthStateChanged
+          setIsLogoutConfirmOpen(false);
+          setCurrentPage('landing'); // Redirect to landing page on logout
       } catch (error) {
           console.error("Error signing out: ", error);
           // Optionally set an error message to display to the user
@@ -421,6 +449,7 @@ ${extractedKeywords.join(', ')}`;
         case 'generator': return t('appTitle');
         case 'jobs': return t('jobsListTitle');
         case 'documents': return t('myDocumentsTitle');
+        case 'profile': return t('profileTitle');
         default: return '';
     }
   };
@@ -431,6 +460,7 @@ ${extractedKeywords.join(', ')}`;
         case 'generator': return t('appSubtitle');
         case 'jobs': return t('jobsListSubtitle');
         case 'documents': return t('myDocumentsSubtitle');
+        case 'profile': return t('profileSubtitle');
         default: return '';
     }
   };
@@ -480,6 +510,27 @@ ${extractedKeywords.join(', ')}`;
               return <JobsListPage t={t} jobs={jobs} setJobs={setJobs} />;
           case 'documents':
               return <MyDocumentsPage t={t} documents={documents} setDocuments={setDocuments} />;
+          case 'profile':
+              const currentUserProfile = user ? userProfiles.find(p => p.uid === user.uid) : null;
+              if (!user || !currentUserProfile) {
+                  setCurrentPage('landing');
+                  return null; // Redirect if not logged in or profile not found
+              }
+              return <ProfilePage
+                          t={t}
+                          user={user}
+                          profile={currentUserProfile}
+                          onSaveProfile={(updatedProfile) => {
+                              setUserProfiles(profiles =>
+                                  profiles.map(p => p.uid === updatedProfile.uid ? updatedProfile : p)
+                              );
+                              // Also update the global UI language if it was changed
+                              if (uiLanguage !== updatedProfile.defaultLanguage) {
+                                  setUiLanguage(updatedProfile.defaultLanguage);
+                              }
+                          }}
+                          setCurrentPage={setCurrentPage}
+                      />;
           default:
               return <LandingPage t={t} setCurrentPage={setCurrentPage} />;
       }
@@ -501,6 +552,15 @@ ${extractedKeywords.join(', ')}`;
         onLoginSuccess={handleLoginSuccess}
         t={t}
       />
+      <ConfirmationModal
+          isOpen={isLogoutConfirmOpen}
+          onClose={() => setIsLogoutConfirmOpen(false)}
+          onConfirm={handleConfirmLogout}
+          title={t('logoutConfirmationTitle')}
+          t={t}
+      >
+          <p>{t('logoutConfirmation')}</p>
+      </ConfirmationModal>
       <SelectCvModal
         isOpen={isSelectCvModalOpen}
         onClose={() => setIsSelectCvModalOpen(false)}
@@ -582,7 +642,7 @@ ${extractedKeywords.join(', ')}`;
                                   </div>
                               </div>
                               <div className="dropdown-divider" />
-                              <button className="dropdown-item">
+                              <button className="dropdown-item" onClick={() => handleNavClick('profile')}>
                                   <UserIcon /> {t('manageProfileButton')}
                               </button>
                               <button onClick={handleLogout} className="dropdown-item dropdown-item-destructive">

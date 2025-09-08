@@ -2,6 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
+import { LanguageCode } from '../translations';
 
 export type JobStatus = 'to apply' | 'do not apply' | 'applied';
 
@@ -33,4 +34,14 @@ export type DocumentItem = {
 
 export type ExtractedJobData = Omit<Job, 'id' | 'applicationDate' | 'status'>;
 
-export type Page = 'landing' | 'generator' | 'jobs' | 'documents';
+export type Page = 'landing' | 'generator' | 'jobs' | 'documents' | 'profile';
+
+export type Gender = 'man' | 'woman' | 'other' | 'unspecified';
+
+export type UserProfile = {
+  uid: string;
+  firstName: string;
+  lastName: string;
+  defaultLanguage: LanguageCode;
+  gender: Gender;
+};
