@@ -6,8 +6,9 @@ import React, { FC, useState, useRef } from 'react';
 import { Packer, Document, Paragraph, TextRun } from 'docx';
 import saveAs from 'file-saver';
 import { translations } from '../../translations';
-import { DocumentItem } from '../types';
+import { Job } from '../types';
 import { Collapsible, Card, Button, Textarea, NumberStepper } from '../components/ui';
+import { SelectJobModal } from '../components/SelectJobModal';
 import { RocketIcon, LockIcon } from '../components/icons';
 
 type LockedButtonWrapperProps = {
@@ -58,6 +59,8 @@ type GeneratorPageProps = {
     isOutputOpen: boolean;
     setIsOutputOpen: React.Dispatch<React.SetStateAction<boolean>>;
     setLoadingMessage: React.Dispatch<React.SetStateAction<React.ReactNode>>;
+    jobs: Job[];
+    setJobs: React.Dispatch<React.SetStateAction<Job[]>>;
     isAuthenticated: boolean;
     openAuthModal: () => void;
 }
@@ -67,12 +70,14 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
     handleFileUpload, setIsSelectCvModalOpen, setIsSelectJobModalOpen, generateContent, isLoading,
     keywords, setKeywords, coverLetter, setCoverLetter, shortProfile, setShortProfile,
     isInputOpen, setIsInputOpen, isOutputOpen, setIsOutputOpen, setLoadingMessage,
-    isAuthenticated, openAuthModal
+    jobs, setJobs, isAuthenticated, openAuthModal
 }) => {
     const [maxWords, setMaxWords] = useState(150);
-    const [outputFormat, setOutputFormat] = useState('MS Word');
     const [language, setLanguage] = useState('German');
     
+    const [contentToSave, setContentToSave] = useState<{ type: 'shortProfile' | 'coverLetter', content: string } | null>(null);
+    const [isSelectJobToSaveModalOpen, setIsSelectJobToSaveModalOpen] = useState(false);
+
     const cvUploadRef = useRef<HTMLInputElement>(null);
     const jobUploadRef = useRef<HTMLInputElement>(null);
 
@@ -105,23 +110,14 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
     };
 
     const handleCoverLetterDownload = () => {
-        if (outputFormat === 'MS Word') {
-            downloadDocx(coverLetter, "Cover-Letter.docx");
-        } else {
-            copyToClipboard(coverLetter);
-        }
+        downloadDocx(coverLetter, "Cover-Letter.docx");
     };
     
     const handleShortProfileDownload = () => {
-        if (outputFormat === 'MS Word') {
-            downloadDocx(shortProfile, "Short-Profile.docx");
-        } else {
-            copyToClipboard(shortProfile);
-        }
+        downloadDocx(shortProfile, "Short-Profile.docx");
     };
     
     const handleGenerateClick = () => {
-        const translatedOutputFormat = outputFormat === 'MS Word' ? t('outputFormatMsWord') : t('outputFormatGoogleDocs');
         let translatedLanguage;
         switch (language) {
           case 'English': translatedLanguage = t('languageEnglish'); break;
@@ -136,17 +132,44 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                 <ul className="loading-details-list">
                     <li>{`${t('modalWordsLabel')}: ${maxWords}`}</li>
                     <li>{`${t('languageLabel')}: ${translatedLanguage}`}</li>
-                    <li>{`${t('modalFormatLabel')}: ${translatedOutputFormat}`}</li>
                 </ul>
             </>
         );
         
         setLoadingMessage(message);
         generateContent(language, maxWords);
-    }
+    };
+
+    const handleOpenSaveToJobModal = (type: 'shortProfile' | 'coverLetter') => {
+        const content = type === 'shortProfile' ? shortProfile : coverLetter;
+        if (content) {
+            setContentToSave({ type, content });
+            setIsSelectJobToSaveModalOpen(true);
+        }
+    };
+
+    const handleSaveContentToJob = (selectedJob: Job) => {
+        if (contentToSave) {
+            setJobs(prevJobs => prevJobs.map(job =>
+                job.id === selectedJob.id
+                    ? { ...job, [contentToSave.type]: contentToSave.content }
+                    : job
+            ));
+        }
+        setIsSelectJobToSaveModalOpen(false);
+        setContentToSave(null);
+    };
+
 
     return (
         <>
+        <SelectJobModal
+            isOpen={isSelectJobToSaveModalOpen}
+            onClose={() => setIsSelectJobToSaveModalOpen(false)}
+            onSelect={handleSaveContentToJob}
+            jobs={jobs}
+            t={t}
+        />
         <p className="workflow-description">{t('workflowDescription')}</p>
         <Collapsible title={t('inputFilesTitle')} isOpen={isInputOpen} onToggle={() => setIsInputOpen(!isInputOpen)}>
             <Card>
@@ -235,18 +258,6 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                 />
                 </div>
                 <div className="form-group">
-                <label htmlFor="outputFormat">{t('outputFormatLabel')}</label>
-                <select 
-                    id="outputFormat"
-                    value={outputFormat}
-                    onChange={(e) => setOutputFormat(e.target.value)}
-                    className="input"
-                >
-                    <option value="MS Word">{t('outputFormatMsWord')}</option>
-                    <option value="Google Docs">{t('outputFormatGoogleDocs')}</option>
-                </select>
-                </div>
-                <div className="form-group">
                 <label htmlFor="language">{t('languageLabel')}</label>
                 <select 
                     id="language"
@@ -283,15 +294,25 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                     {shortProfile && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
                     <LockedButtonWrapper
                         isAuthenticated={isAuthenticated}
+                        onClick={() => handleOpenSaveToJobModal('shortProfile')}
+                        openAuthModal={openAuthModal}
+                        t={t}
+                        disabled={!shortProfile}
+                    >
+                        <Button variant="secondary" className="btn-sm">{t('saveToJobButton')}</Button>
+                    </LockedButtonWrapper>
+                    <LockedButtonWrapper
+                        isAuthenticated={isAuthenticated}
                         onClick={handleShortProfileDownload}
                         openAuthModal={openAuthModal}
                         t={t}
                         disabled={!shortProfile}
                     >
-                        <Button variant="secondary" className="btn-sm">
-                            {outputFormat === 'MS Word' ? t('downloadButton') : t('copyButton')}
-                        </Button>
+                        <Button variant="secondary" className="btn-sm">{t('downloadButton')}</Button>
                     </LockedButtonWrapper>
+                    <Button variant="secondary" onClick={() => copyToClipboard(shortProfile)} className="btn-sm" disabled={!shortProfile}>
+                        {t('copyButton')}
+                    </Button>
                     {shortProfile && <Button variant="secondary" onClick={() => setShortProfile('')} className="btn-sm">{t('clearButton')}</Button>}
                 </div>
             </div>
@@ -308,15 +329,25 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                     {coverLetter && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
                     <LockedButtonWrapper
                         isAuthenticated={isAuthenticated}
+                        onClick={() => handleOpenSaveToJobModal('coverLetter')}
+                        openAuthModal={openAuthModal}
+                        t={t}
+                        disabled={!coverLetter}
+                    >
+                        <Button variant="secondary" className="btn-sm">{t('saveToJobButton')}</Button>
+                    </LockedButtonWrapper>
+                     <LockedButtonWrapper
+                        isAuthenticated={isAuthenticated}
                         onClick={handleCoverLetterDownload}
                         openAuthModal={openAuthModal}
                         t={t}
                         disabled={!coverLetter}
                     >
-                        <Button variant="secondary" className="btn-sm">
-                            {outputFormat === 'MS Word' ? t('downloadButton') : t('copyButton')}
-                        </Button>
+                        <Button variant="secondary" className="btn-sm">{t('downloadButton')}</Button>
                     </LockedButtonWrapper>
+                    <Button variant="secondary" onClick={() => copyToClipboard(coverLetter)} className="btn-sm" disabled={!coverLetter}>
+                        {t('copyButton')}
+                    </Button>
                     {coverLetter && <Button variant="secondary" onClick={() => setCoverLetter('')} className="btn-sm">{t('clearButton')}</Button>}
                 </div>
             </div>

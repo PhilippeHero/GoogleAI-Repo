@@ -831,7 +831,7 @@ textarea[readonly]:focus {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 500px;
+  width: 1000px;
   max-width: 90vw;
   background-color: hsl(var(--card));
   border-left: 1px solid hsl(var(--border));
@@ -898,6 +898,22 @@ textarea[readonly]:focus {
 }
 
 /* New Form Layout Styles for Side Pane */
+.side-pane-columns {
+  display: flex;
+  gap: 1.5rem;
+  flex-grow: 1;
+}
+
+.side-pane-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.side-pane-column .form-group-stack {
+  flex-grow: 1;
+}
+
 .form-group-row {
   display: flex;
   gap: 1rem;
@@ -1456,6 +1472,9 @@ textarea[readonly]:focus {
   /* On mobile, the sidebar is an overlay, so main content doesn't need padding */
   .main-container.sidebar-open {
     padding-left: 0;
+  }
+  .side-pane-columns {
+    flex-direction: column;
   }
 }
 

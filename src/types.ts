@@ -16,6 +16,8 @@ export type Job = {
   url: string;
   status: JobStatus;
   textExtract?: string;
+  shortProfile?: string;
+  coverLetter?: string;
 };
 
 export type DocumentItem = {

@@ -180,56 +180,70 @@ const JobEditSidePane: FC<{
         </div>
         <div className="side-pane-body">
           <p>{t('editJobDetailsSubtitle')}</p>
-          <div className="form-group-stack">
-            <label htmlFor="edit-title">{t('jobColumnTitle')}</label>
-            <input id="edit-title" name="title" value={formData.title || ''} onChange={handleChange} className="input" />
+          <div className="side-pane-columns">
+            <div className="side-pane-column">
+              <div className="form-group-stack">
+                <label htmlFor="edit-title">{t('jobColumnTitle')}</label>
+                <input id="edit-title" name="title" value={formData.title || ''} onChange={handleChange} className="input" />
 
-            <label htmlFor="edit-company">{t('jobColumnCompany')}</label>
-            <input id="edit-company" name="company" value={formData.company || ''} onChange={handleChange} className="input" />
-            
-            <label htmlFor="edit-location">{t('jobColumnLocation')}</label>
-            <input id="edit-location" name="location" value={formData.location || ''} onChange={handleChange} className="input" />
+                <label htmlFor="edit-company">{t('jobColumnCompany')}</label>
+                <input id="edit-company" name="company" value={formData.company || ''} onChange={handleChange} className="input" />
+                
+                <label htmlFor="edit-location">{t('jobColumnLocation')}</label>
+                <input id="edit-location" name="location" value={formData.location || ''} onChange={handleChange} className="input" />
 
-            <label htmlFor="edit-url">{t('jobColumnUrl')}</label>
-            <input id="edit-url" name="url" type="url" value={formData.url || ''} onChange={handleChange} className="input" />
+                <label htmlFor="edit-url">{t('jobColumnUrl')}</label>
+                <input id="edit-url" name="url" type="url" value={formData.url || ''} onChange={handleChange} className="input" />
 
-            <label htmlFor="edit-posted">{t('jobColumnPosted')}</label>
-            <input id="edit-posted" name="posted" type="date" value={formData.posted || ''} onChange={handleChange} className="input" />
-            
-            <div className="form-group-row">
-                <div className="form-group-column">
-                    <label htmlFor="edit-status">{t('jobColumnStatus')}</label>
-                    <select id="edit-status" name="status" value={formData.status || 'to apply'} onChange={handleChange} className="input">
-                        <option value="to apply">{t('jobStatusToApply')}</option>
-                        <option value="do not apply">{t('jobStatusDoNotApply')}</option>
-                        <option value="applied">{t('jobStatusApplied')}</option>
-                    </select>
-                </div>
-                <div className="form-group-column">
-                    <label htmlFor="edit-applicationDate">
-                        {t('jobColumnApplicationDate')}
-                        {formData.status === 'applied' && <span style={{ color: 'hsl(var(--destructive))', marginLeft: '0.25rem' }}>*</span>}
-                    </label>
-                    <div className="field-with-icon">
-                        <input id="edit-applicationDate" name="applicationDate" type="date" value={formData.applicationDate || ''} onChange={handleChange} className="input" />
-                        {isDateBeforeTomorrow(formData.applicationDate || '') && (
-                            <span title={t('applicationSubmittedTooltip')}>
-                                <CheckCircleIcon className="checkmark-icon" />
-                            </span>
-                        )}
+                <label htmlFor="edit-posted">{t('jobColumnPosted')}</label>
+                <input id="edit-posted" name="posted" type="date" value={formData.posted || ''} onChange={handleChange} className="input" />
+                
+                <div className="form-group-row">
+                    <div className="form-group-column">
+                        <label htmlFor="edit-status">{t('jobColumnStatus')}</label>
+                        <select id="edit-status" name="status" value={formData.status || 'to apply'} onChange={handleChange} className="input">
+                            <option value="to apply">{t('jobStatusToApply')}</option>
+                            <option value="do not apply">{t('jobStatusDoNotApply')}</option>
+                            <option value="applied">{t('jobStatusApplied')}</option>
+                        </select>
+                    </div>
+                    <div className="form-group-column">
+                        <label htmlFor="edit-applicationDate">
+                            {t('jobColumnApplicationDate')}
+                            {formData.status === 'applied' && <span style={{ color: 'hsl(var(--destructive))', marginLeft: '0.25rem' }}>*</span>}
+                        </label>
+                        <div className="field-with-icon">
+                            <input id="edit-applicationDate" name="applicationDate" type="date" value={formData.applicationDate || ''} onChange={handleChange} className="input" />
+                            {isDateBeforeTomorrow(formData.applicationDate || '') && (
+                                <span title={t('applicationSubmittedTooltip')}>
+                                    <CheckCircleIcon className="checkmark-icon" />
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
+                {error && <p className="error-inline" style={{ marginTop: '-0.5rem', marginBottom: '1rem' }}>{error}</p>}
+                <div className="form-group-expand">
+                  <label htmlFor="edit-description">{t('jobColumnDescription')}</label>
+                  <Textarea id="edit-description" name="description" value={formData.description || ''} onChange={handleChange} placeholder="" />
+                </div>
+              </div>
             </div>
-            {error && <p className="error-inline" style={{ marginTop: '-0.5rem', marginBottom: '1rem' }}>{error}</p>}
-
-
-            <div className="form-group-expand">
-              <label htmlFor="edit-description">{t('jobColumnDescription')}</label>
-              <Textarea id="edit-description" name="description" value={formData.description || ''} onChange={handleChange} placeholder="" />
-            </div>
-            <div className="form-group-expand">
-                <label htmlFor="edit-textExtract">{t('jobColumnTextExtract')}</label>
-                <Textarea id="edit-textExtract" name="textExtract" value={formData.textExtract || ''} onChange={handleChange} placeholder={t('textExtractPlaceholder')} />
+            <div className="side-pane-column">
+              <div className="form-group-stack">
+                <div className="form-group-expand">
+                    <label htmlFor="edit-textExtract">{t('jobColumnTextExtract')}</label>
+                    <Textarea id="edit-textExtract" name="textExtract" value={formData.textExtract || ''} onChange={handleChange} placeholder={t('textExtractPlaceholder')} />
+                </div>
+                <div className="form-group-expand">
+                    <label htmlFor="edit-shortProfile">{t('jobColumnShortProfile')}</label>
+                    <Textarea id="edit-shortProfile" name="shortProfile" value={formData.shortProfile || ''} onChange={handleChange} placeholder="" />
+                </div>
+                <div className="form-group-expand" style={{ flexGrow: 2 }}>
+                    <label htmlFor="edit-coverLetter">{t('jobColumnCoverLetter')}</label>
+                    <Textarea id="edit-coverLetter" name="coverLetter" value={formData.coverLetter || ''} onChange={handleChange} placeholder="" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -411,6 +425,8 @@ ${jobPageContent}`;
                 url: jobData.url || '',
                 status: jobData.status || 'to apply',
                 textExtract: jobData.textExtract || '',
+                shortProfile: jobData.shortProfile || '',
+                coverLetter: jobData.coverLetter || '',
             };
             setJobs([newJob, ...jobs]);
         }
