@@ -7,7 +7,7 @@ import saveAs from 'file-saver';
 import { GoogleGenAI, Type } from '@google/genai';
 import { translations } from '../../translations';
 import { Job, ExtractedJobData, JobStatus } from '../types';
-import { getInitialDate, getTodayDate, isDateBeforeTomorrow, formatDate } from '../utils';
+import { getTodayDate, isDateBeforeTomorrow, formatDate } from '../utils';
 import { Card, Button, ConfirmationModal, Textarea } from '../components/ui';
 import { FileSpreadsheetIcon, SortIcon, CheckCircleIcon } from '../components/icons';
 
@@ -111,7 +111,7 @@ const JobEditSidePane: FC<{
   isOpen: boolean;
   onClose: () => void;
   onSave: (job: Partial<Job>) => void;
-  onDelete: (jobId: number) => void;
+  onDelete: (jobId: string) => void;
   t: (key: keyof typeof translations['EN']) => string;
 }> = ({ job, isOpen, onClose, onSave, onDelete, t }) => {
   const [formData, setFormData] = useState<Partial<Job> | null>(null);
@@ -263,8 +263,10 @@ const JobEditSidePane: FC<{
 export const JobsListPage: FC<{
     t: (key: keyof typeof translations['EN']) => string;
     jobs: Job[];
-    setJobs: React.Dispatch<React.SetStateAction<Job[]>>;
-}> = ({ t, jobs, setJobs }) => {
+    onAddJob: (job: Omit<Job, 'id' | 'user_id' | 'created_at'>) => Promise<{ data: any; error: any; }>;
+    onUpdateJob: (job: Partial<Job>) => void;
+    onDeleteJob: (jobId: string) => void;
+}> = ({ t, jobs, onAddJob, onUpdateJob, onDeleteJob }) => {
     type SortConfig = { key: keyof Job; direction: 'ascending' | 'descending' } | null;
 
     const [jobUrl, setJobUrl] = useState('');
@@ -322,7 +324,7 @@ export const JobsListPage: FC<{
     
     const handleAddJob = async () => {
         if (!jobUrl) {
-            setSelectedJob({ posted: getTodayDate(), status: 'to apply' });
+            setSelectedJob({ posted: getTodayDate(), status: 'to apply', applicationDate: '' });
             setIsJobModalOpen(true);
             return;
         }
@@ -333,7 +335,6 @@ export const JobsListPage: FC<{
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             
-            // Step 1: Use Google Search to get information about the job at the URL.
             const searchPrompt = `Please provide the full text of the job description from the following URL: ${jobUrl}`;
             const searchResponse = await ai.models.generateContent({
                 model: "gemini-2.5-flash",
@@ -344,11 +345,10 @@ export const JobsListPage: FC<{
             });
 
             const jobPageContent = searchResponse.text;
-            if (!jobPageContent || jobPageContent.length < 50) { // Simple check for useful content
+            if (!jobPageContent || jobPageContent.length < 50) {
                  throw new Error("Could not retrieve sufficient information from the URL via search.");
             }
 
-            // Step 2: Extract structured data from the retrieved content.
             const extractionPrompt = `From the following job posting text, extract the job title, company, location, posted date, and a brief description.
 - For the "posted" key, you MUST provide the date in YYYY-MM-DD format. If the date is relative (e.g., "3 days ago"), calculate the absolute date based on today's date. If it is impossible to determine the date, use an empty string.
 - For the "description", provide a brief summary of 50-100 words.
@@ -387,7 +387,7 @@ ${jobPageContent}`;
                 url: jobUrl,
             };
 
-            setSelectedJob({ ...validatedData, status: 'to apply' });
+            setSelectedJob({ ...validatedData, status: 'to apply', applicationDate: '' });
             setIsJobModalOpen(true);
             setJobUrl('');
 
@@ -411,30 +411,17 @@ ${jobPageContent}`;
     };
     
     const handleSaveJob = (jobData: Partial<Job>) => {
-        if (jobData.id) { // Editing existing job
-            setJobs(jobs.map(j => j.id === jobData.id ? { ...j, ...jobData } as Job : j));
-        } else { // Adding new job
-            const newJob: Job = {
-                id: Date.now(),
-                title: jobData.title || 'Untitled Job',
-                company: jobData.company || 'N/A',
-                location: jobData.location || 'N/A',
-                posted: jobData.posted || '',
-                applicationDate: jobData.applicationDate || '',
-                description: jobData.description || '',
-                url: jobData.url || '',
-                status: jobData.status || 'to apply',
-                internalNotes: jobData.internalNotes || '',
-                myShortProfile: jobData.myShortProfile || '',
-                myCoverLetter: jobData.myCoverLetter || '',
-            };
-            setJobs([newJob, ...jobs]);
+        if (jobData.id) {
+            onUpdateJob(jobData);
+        } else {
+            const { id, user_id, created_at, ...newJobData } = jobData as Job;
+            onAddJob(newJobData);
         }
         handleCloseAll();
     };
 
-    const handleDeleteJob = (jobId: number) => {
-        setJobs(jobs.filter(j => j.id !== jobId));
+    const handleDeleteJob = (jobId: string) => {
+        onDeleteJob(jobId);
         handleCloseAll();
     };
 
@@ -488,7 +475,7 @@ ${jobPageContent}`;
                 isOpen={isSidePaneOpen}
                 job={selectedJob}
                 onClose={handleCloseAll}
-                onSave={handleSaveJob}
+                onSave={onUpdateJob}
                 onDelete={handleDeleteJob}
                 t={t}
             />

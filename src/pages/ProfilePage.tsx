@@ -3,15 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { FC, useState, useEffect } from 'react';
-import firebase from 'firebase/compat/app';
+import { User } from '@supabase/supabase-js';
 import { translations, LanguageCode } from '../../translations';
 import { UserProfile, Gender, Page } from '../types';
 import { Card, Button } from '../components/ui';
 import { GoogleDriveIcon } from '../components/icons';
+import { supabase } from '../supabase';
 
 type ProfilePageProps = {
   t: (key: keyof typeof translations['EN']) => string;
-  user: firebase.User;
+  user: User;
   profile: UserProfile;
   onSaveProfile: (updatedProfile: UserProfile) => void;
   setCurrentPage: (page: Page) => void;
@@ -50,10 +51,17 @@ export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProf
     setSaveSuccess(false);
 
     try {
-      // Update Firebase Auth display name
-      const newDisplayName = `${formData.firstName} ${formData.lastName}`.trim();
-      if (user.displayName !== newDisplayName) {
-        await user.updateProfile({ displayName: newDisplayName });
+      // Update Supabase Auth user metadata
+      const newFullName = `${formData.firstName} ${formData.lastName}`.trim();
+      if (user.user_metadata.full_name !== newFullName) {
+        const { error } = await supabase.auth.updateUser({ 
+            data: { 
+                first_name: formData.firstName,
+                last_name: formData.lastName,
+                full_name: newFullName
+            } 
+        });
+        if (error) throw error;
       }
 
       // Pass updated profile up to App state

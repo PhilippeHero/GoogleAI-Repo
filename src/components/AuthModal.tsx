@@ -3,30 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { FC, useState, useEffect, useRef } from 'react';
-// Fix: Use Firebase v8 compat imports
-// Fix: Changed firebase/app to firebase/compat/app and added firebase/compat/auth to use v8 compatibility mode and resolve errors.
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/auth';
 import { Button } from './ui';
 import { SparkIcon, GoogleIcon, EyeIcon, EyeOffIcon } from './icons';
 import { translations } from '../../translations';
-import { auth } from '../firebase';
+import { supabase } from '../supabase';
 
 
 type AuthModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: () => void;
   t: (key: keyof typeof translations['EN']) => string;
 };
 
 type View = 'signin' | 'signup' | 'forgot' | 'success';
 
-export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess, t }) => {
+export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, t }) => {
   const [error, setError] = useState<string[]>([]);
   const [view, setView] = useState<View>('signin');
   const [successMessage, setSuccessMessage] = useState('');
-  const [onSuccessAction, setOnSuccessAction] = useState<'login' | 'close'>('close');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   const forgotEmailRef = useRef<HTMLInputElement>(null);
@@ -59,16 +53,14 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
     }
 
     try {
-        await auth.sendPasswordResetEmail(email);
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin,
+        });
+        if (error) throw error;
         setSuccessMessage(t('resetEmailSentMessage'));
-        setOnSuccessAction('close');
         setView('success');
     } catch (err: any) {
-        if (err && err.code === 'auth/user-not-found') {
-            setError([t('errorUserNotFound')]);
-        } else {
-            setError([err.message || "An unexpected error occurred."]);
-        }
+        setError([err.message || "An unexpected error occurred."]);
     }
   };
 
@@ -86,24 +78,14 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
 
     if (view === 'signin') {
         try {
-            await auth.signInWithEmailAndPassword(email, password);
-            onLoginSuccess();
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            // onAuthStateChanged in App.tsx will handle the rest
         } catch (err: any) {
-            if (err && err.code) {
-                switch(err.code) {
-                    case 'auth/user-not-found':
-                    case 'auth/invalid-email':
-                        setError([t('errorUserNotFound')]);
-                        break;
-                    case 'auth/wrong-password':
-                    case 'auth/invalid-credential':
-                        setError([t('errorWrongPassword')]);
-                        break;
-                    default:
-                        setError([err.message || 'An unexpected error occurred during sign in.']);
-                }
+            if (err.message.includes('Invalid login credentials')) {
+                setError([t('errorUserNotFound')]);
             } else {
-                setError(["An unexpected error occurred during sign in."]);
+                setError([err.message || 'An unexpected error occurred during sign in.']);
             }
         }
     } else { // signup mode
@@ -116,31 +98,35 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
         }
 
         try {
-            const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-            if (userCredential.user) {
-                await userCredential.user.updateProfile({
-                    displayName: `${firstName.trim()} ${lastName.trim()}`
-                });
-                await userCredential.user.sendEmailVerification();
-            }
-            setSuccessMessage(t('verificationEmailSentMessage'));
-            setOnSuccessAction('login');
-            setView('success');
-        } catch (err: any) {
-            if (err && err.code) {
-                switch(err.code) {
-                    case 'auth/weak-password':
-                        const cleanedMessage = err.message.replace(/\s\(auth\/[\w-]+\)\.?$/, '').trim();
-                        setError([cleanedMessage]);
-                        break;
-                    case 'auth/email-already-in-use':
-                        setError([t('errorEmailInUse')]);
-                        break;
-                    default:
-                        setError([err.message || 'An error occurred during sign up. Please try again.']);
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        first_name: firstName.trim(),
+                        last_name: lastName.trim(),
+                        full_name: `${firstName.trim()} ${lastName.trim()}`,
+                    }
                 }
+            });
+            if (error) throw error;
+            
+            const isEmailConfirmationRequired = data.user?.identities?.length === 0;
+
+            if (isEmailConfirmationRequired) {
+                setSuccessMessage(t('verificationEmailSentMessage'));
             } else {
-                setError(["An unexpected error occurred during sign up."]);
+                setSuccessMessage('Account created successfully!');
+            }
+            setView('success');
+
+        } catch (err: any) {
+             if (err.message.includes('Password should be at least 6 characters')) {
+                setError([t('errorWeakPassword')]);
+            } else if (err.message.includes('User already registered')) {
+                setError([t('errorEmailInUse')]);
+            } else {
+                setError([err.message || 'An error occurred during sign up. Please try again.']);
             }
         }
     }
@@ -148,29 +134,17 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
 
   const handleGoogleSignIn = async () => {
       setError([]);
-      const provider = new firebase.auth.GoogleAuthProvider();
       try {
-          await auth.signInWithPopup(provider);
-          onLoginSuccess();
-      } catch (error: any) {
-           if (error && error.code) {
-                if(error.code !== 'auth/popup-closed-by-user') {
-                    setError([error.message]);
-                }
-            } else {
-                setError(["An unexpected error occurred with Google Sign-In."]);
-            }
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+        });
+        if (error) throw error;
+        // The user will be redirected, onAuthStateChanged handles success
+      } catch (err: any) {
+        setError([err.message || "An unexpected error occurred with Google Sign-In."]);
       }
   }
   
-  const handleSuccessContinue = () => {
-    if (onSuccessAction === 'login') {
-        onLoginSuccess();
-    } else {
-        onClose();
-    }
-  };
-
   const renderContent = () => {
     if (view === 'success') {
       return (
@@ -180,7 +154,7 @@ export const AuthModal: FC<AuthModalProps> = ({ isOpen, onClose, onLoginSuccess,
             <h2 id="auth-dialog-title">{t('successTitle')}</h2>
           </div>
           <p className="auth-info">{successMessage}</p>
-          <Button onClick={handleSuccessContinue} className="auth-button">
+          <Button onClick={onClose} className="auth-button">
               {t('continueButton')}
           </Button>
         </>

@@ -60,7 +60,7 @@ type GeneratorPageProps = {
     setIsOutputOpen: React.Dispatch<React.SetStateAction<boolean>>;
     setLoadingMessage: React.Dispatch<React.SetStateAction<React.ReactNode>>;
     jobs: Job[];
-    setJobs: React.Dispatch<React.SetStateAction<Job[]>>;
+    onUpdateJob: (job: Partial<Job>) => void;
     isAuthenticated: boolean;
     openAuthModal: () => void;
     sourceJob: Job | null;
@@ -72,7 +72,7 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
     handleFileUpload, setIsSelectCvModalOpen, setIsSelectJobModalOpen, generateContent, isLoading,
     keywords, setKeywords, coverLetter, setCoverLetter, shortProfile, setShortProfile,
     isInputOpen, setIsInputOpen, isOutputOpen, setIsOutputOpen, setLoadingMessage,
-    jobs, setJobs, isAuthenticated, openAuthModal, sourceJob, setSourceJob
+    jobs, onUpdateJob, isAuthenticated, openAuthModal, sourceJob, setSourceJob
 }) => {
     const [maxWords, setMaxWords] = useState(150);
     const [language, setLanguage] = useState('German');
@@ -152,11 +152,7 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
 
     const handleSaveContentToJob = (selectedJob: Job) => {
         if (contentToSave) {
-            setJobs(prevJobs => prevJobs.map(job =>
-                job.id === selectedJob.id
-                    ? { ...job, [contentToSave.type]: contentToSave.content }
-                    : job
-            ));
+            onUpdateJob({ id: selectedJob.id, [contentToSave.type]: contentToSave.content });
         }
         setIsSelectJobToSaveModalOpen(false);
         setContentToSave(null);
@@ -282,7 +278,6 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
             <div className="card-header-wrapper">
                 <h3 className="card-header">{t('keywordsHeader')}</h3>
                 <div className="card-header-actions">
-                {keywords.length > 0 && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
                 {keywords.length > 0 && <Button variant="secondary" onClick={() => setKeywords([])} className="btn-sm">{t('clearButton')}</Button>}
                 </div>
             </div>
@@ -294,7 +289,6 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
             <div className="card-header-wrapper">
                 <h3 className="card-header">{t('shortProfileHeader')}</h3>
                 <div className="card-header-actions">
-                    {shortProfile && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
                     <LockedButtonWrapper
                         isAuthenticated={isAuthenticated}
                         onClick={() => handleOpenSaveToJobModal('myShortProfile')}
@@ -329,7 +323,6 @@ export const GeneratorPage: FC<GeneratorPageProps> = ({
                 <div className="card-header-wrapper">
                 <h3 className="card-header">{t('generatedCoverLetterHeader')}</h3>
                 <div className="card-header-actions">
-                    {coverLetter && <small className="autosave-indicator">{t('autoSavedIndicator')}</small>}
                     <LockedButtonWrapper
                         isAuthenticated={isAuthenticated}
                         onClick={() => handleOpenSaveToJobModal('myCoverLetter')}

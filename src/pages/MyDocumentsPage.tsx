@@ -26,13 +26,14 @@ const DocumentEditSidePane: FC<{
   onClose: () => void;
   onSave: (doc: Partial<DocumentItem>) => void;
   onDelete: (docId: string) => void;
-  onUpload: (docId: string) => void;
+  onUpload: (docId: string, file: File) => void;
   t: (key: keyof typeof translations['EN']) => string;
 }> = ({ doc, isOpen, onClose, onSave, onDelete, onUpload, t }) => {
     const [formData, setFormData] = useState<Partial<DocumentItem> | null>(null);
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
     const [filePreview, setFilePreview] = useState('');
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     
     useEffect(() => {
         setFormData(doc);
@@ -129,10 +130,16 @@ const DocumentEditSidePane: FC<{
         }
     };
     
-    const handleUpload = () => {
-        if (formData?.id) {
-            onUpload(formData.id);
+    const handleUploadClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file && formData?.id) {
+            onUpload(formData.id, file);
         }
+        if(event.target) event.target.value = ''; // Reset file input
     };
 
     const handleDelete = () => {
@@ -163,6 +170,14 @@ const DocumentEditSidePane: FC<{
                 <p>{t('deleteDocumentConfirmation')}</p>
             </ConfirmationModal>
             
+            <input 
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+                accept=".pdf,.doc,.docx,.txt,.md,.xls,.xlsx,image/*"
+            />
+
             <div className={`side-pane-overlay ${isOpen ? 'open' : ''}`} onClick={onClose} />
             <div className={`side-pane ${isOpen ? 'open' : ''}`} role="dialog" aria-modal="true" aria-labelledby="side-pane-doc-title">
                 <div className="side-pane-header">
@@ -205,7 +220,7 @@ const DocumentEditSidePane: FC<{
                         <div className="form-group-expand" style={{marginTop: '1rem'}}>
                             <div className="card-header-wrapper" style={{marginBottom: '0.5rem'}}>
                                 <label htmlFor="doc-content-preview">{t('documentContentHeader')}</label>
-                                <Button onClick={handleUpload} variant="secondary">{t('uploadNewVersionButton')}</Button>
+                                <Button onClick={handleUploadClick} variant="secondary">{t('uploadNewVersionButton')}</Button>
                             </div>
                             <Textarea 
                                 id="doc-content-preview" 
@@ -234,23 +249,18 @@ const DocumentEditSidePane: FC<{
 export const MyDocumentsPage: FC<{
     t: (key: keyof typeof translations['EN']) => string;
     documents: DocumentItem[];
-    setDocuments: React.Dispatch<React.SetStateAction<DocumentItem[]>>;
-}> = ({ t, documents, setDocuments }) => {
+    onAddDocument: (doc: Omit<DocumentItem, 'id' | 'user_id' | 'created_at'>) => Promise<DocumentItem | null>;
+    onUpdateDocument: (doc: Partial<DocumentItem>) => void;
+    onDeleteDocument: (docId: string) => void;
+}> = ({ t, documents, onAddDocument, onUpdateDocument, onDeleteDocument }) => {
     const [newDocumentName, setNewDocumentName] = useState('');
     const [newDocumentType, setNewDocumentType] = useState('cv');
     const [isSidePaneOpen, setIsSidePaneOpen] = useState(false);
     const [selectedDocument, setSelectedDocument] = useState<DocumentItem | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
-
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const dropZoneFileInputRef = useRef<HTMLInputElement>(null);
-    const [documentToUploadId, setDocumentToUploadId] = useState<string | null>(null);
-
-    const handleUploadClick = (docId: string) => {
-        setDocumentToUploadId(docId);
-        fileInputRef.current?.click();
-    };
     
+    const dropZoneFileInputRef = useRef<HTMLInputElement>(null);
+
     const handleOpenEditPane = (doc: DocumentItem) => {
         setSelectedDocument(doc);
         setIsSidePaneOpen(true);
@@ -261,75 +271,58 @@ export const MyDocumentsPage: FC<{
         setSelectedDocument(null);
     };
 
-    const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (file && documentToUploadId) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const fileContent = e.target?.result as string;
-                setDocuments(docs => docs.map(doc =>
-                    doc.id === documentToUploadId
-                    ? {
-                        ...doc,
-                        fileName: file.name,
-                        fileContent: fileContent,
-                        fileMimeType: file.type,
-                        lastUpdated: new Date().toISOString()
-                      }
-                    : doc
-                ));
-                // If the updated doc is the one in the pane, refresh the pane's content
-                if (selectedDocument && selectedDocument.id === documentToUploadId) {
-                    setSelectedDocument(prev => prev ? {
-                        ...prev,
-                        fileName: file.name,
-                        fileContent: fileContent,
-                        fileMimeType: file.type,
-                        lastUpdated: new Date().toISOString()
-                    } : null);
-                }
+    const handleFileUpload = (docId: string, file: File) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const fileContent = e.target?.result as string;
+            const updatedDoc = {
+                id: docId,
+                fileName: file.name,
+                fileContent: fileContent,
+                fileMimeType: file.type,
+                lastUpdated: new Date().toISOString()
             };
-            reader.readAsDataURL(file);
-        }
-        setDocumentToUploadId(null);
-        if(event.target) event.target.value = ''; // Reset file input
+            onUpdateDocument(updatedDoc);
+            
+            // If the updated doc is the one in the pane, refresh the pane's content
+            if (selectedDocument && selectedDocument.id === docId) {
+                setSelectedDocument(prev => prev ? { ...prev, ...updatedDoc } : null);
+            }
+        };
+        reader.readAsDataURL(file);
     };
 
-    const handleAddDocument = () => {
+    const handleAddDocument = async () => {
         if (newDocumentName.trim()) {
-            const newDoc: DocumentItem = {
-                id: `doc-${Date.now()}`,
+            await onAddDocument({
                 name: newDocumentName,
                 type: newDocumentType,
                 textExtract: '',
-            };
-            setDocuments([newDoc, ...documents]);
+            });
             setNewDocumentName('');
             setNewDocumentType('cv');
         } else {
-            // If name is empty, create a placeholder doc and open the editor
-            const newDoc: DocumentItem = {
-                id: `doc-${Date.now()}`,
-                name: '', // Empty name
+            const newDoc = await onAddDocument({
+                name: 'Untitled Document',
                 type: newDocumentType,
                 textExtract: '',
-            };
-            setDocuments(docs => [newDoc, ...docs]);
-            setSelectedDocument(newDoc);
-            setIsSidePaneOpen(true);
-            // Reset form fields after opening pane
+            });
+            if (newDoc) {
+                setSelectedDocument(newDoc);
+                setIsSidePaneOpen(true);
+            }
             setNewDocumentName('');
             setNewDocumentType('cv');
         }
     };
     
     const handleSaveDocument = (docData: Partial<DocumentItem>) => {
-        setDocuments(docs => docs.map(d => d.id === docData.id ? { ...d, ...docData } as DocumentItem : d));
+        onUpdateDocument(docData);
         handleClosePane();
     };
 
     const handleDeleteDocument = (docId: string) => {
-        setDocuments(documents.filter(d => d.id !== docId));
+        onDeleteDocument(docId);
         handleClosePane();
     };
     
@@ -340,13 +333,11 @@ export const MyDocumentsPage: FC<{
 
     const processDroppedFile = (file: File) => {
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             const fileContent = e.target?.result as string;
-            // Use file name (without extension) as the default document name
             const docName = file.name.replace(/\.[^/.]+$/, "");
             
-            const newDoc: DocumentItem = {
-                id: `doc-${Date.now()}`,
+            const newDoc = await onAddDocument({
                 name: docName,
                 type: newDocumentType,
                 fileName: file.name,
@@ -354,15 +345,13 @@ export const MyDocumentsPage: FC<{
                 fileMimeType: file.type,
                 lastUpdated: new Date().toISOString(),
                 textExtract: '',
-            };
+            });
             
-            setDocuments(docs => [newDoc, ...docs]);
-            
-            // Open side pane for the new doc to allow editing/confirmation
-            setSelectedDocument(newDoc);
-            setIsSidePaneOpen(true);
+            if (newDoc) {
+                setSelectedDocument(newDoc);
+                setIsSidePaneOpen(true);
+            }
 
-            // Reset form fields
             setNewDocumentName('');
             setNewDocumentType('cv');
         };
@@ -404,16 +393,8 @@ export const MyDocumentsPage: FC<{
                 onClose={handleClosePane}
                 onSave={handleSaveDocument}
                 onDelete={handleDeleteDocument}
-                onUpload={handleUploadClick}
+                onUpload={handleFileUpload}
                 t={t}
-            />
-
-            <input 
-                type="file"
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-                onChange={handleFileChange}
-                accept=".pdf,.doc,.docx,.txt,.md,.xls,.xlsx,image/*"
             />
 
             <Card className="add-job-card">

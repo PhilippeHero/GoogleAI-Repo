@@ -7,7 +7,9 @@ import { LanguageCode } from '../translations';
 export type JobStatus = 'to apply' | 'do not apply' | 'applied';
 
 export type Job = {
-  id: number;
+  id: string; // UUID from Supabase
+  user_id: string;
+  created_at: string;
   title: string;
   company: string;
   location: string;
@@ -22,7 +24,9 @@ export type Job = {
 };
 
 export type DocumentItem = {
-    id: string;
+    id: string; // UUID from Supabase
+    user_id: string;
+    created_at: string;
     name: string; // The user-defined document name, e.g., "CV for Stark Industries"
     type: string; // 'cv', 'coverLetter', etc.
     fileName?: string;
@@ -32,7 +36,7 @@ export type DocumentItem = {
     textExtract?: string;
 };
 
-export type ExtractedJobData = Omit<Job, 'id' | 'applicationDate' | 'status'>;
+export type ExtractedJobData = Omit<Job, 'id' | 'applicationDate' | 'status' | 'user_id' | 'created_at'>;
 
 export type Page = 'landing' | 'generator' | 'jobs' | 'documents' | 'profile';
 

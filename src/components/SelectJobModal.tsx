@@ -14,7 +14,7 @@ export const SelectJobModal: FC<{
   onSelect: (job: Job) => void;
   jobs: Job[];
   t: (key: keyof typeof translations['EN']) => string;
-  recommendedJobId?: number | null;
+  recommendedJobId?: string | null;
 }> = ({ isOpen, onClose, onSelect, jobs, t, recommendedJobId }) => {
   if (!isOpen) return null;
 

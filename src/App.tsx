@@ -9,15 +9,11 @@ import saveAs from 'file-saver';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
 import * as xlsx from 'xlsx';
+import { User } from '@supabase/supabase-js';
 
-// Fix: Use Firebase v8 compat imports and types
-// Fix: Changed firebase/app to firebase/compat/app to use v8 compatibility mode and resolve type errors.
-import firebase from 'firebase/compat/app';
-import { auth } from './firebase';
-
+import { supabase } from './supabase';
 import { translations, LanguageCode } from '../translations';
 import { Page, DocumentItem, Job, UserProfile } from './types';
-import { getInitialDate } from './utils';
 import { Button, Modal, DropdownMenu, ConfirmationModal } from './components/ui';
 import { AuthModal } from './components/AuthModal';
 import { SelectCvModal } from './components/SelectCvModal';
@@ -29,21 +25,6 @@ import { JobsListPage } from './pages/JobsListPage';
 import { MyDocumentsPage } from './pages/MyDocumentsPage';
 import { ProfilePage } from './pages/ProfilePage';
 
-const initialJobs: Job[] = [
-    { id: 1, title: 'Senior Frontend Engineer', company: 'Stark Industries', location: 'New York, NY', posted: getInitialDate(2), applicationDate: getInitialDate(1), url: 'https://example.com/job/1', description: 'Seeking a talented frontend engineer to build next-generation UIs for our advanced projects. Must be proficient in React and Stark-Tech.', status: 'applied', internalNotes: 'Followed up via email on ' + getInitialDate(0) + '. Recruiter mentioned a 2-week timeline.', myShortProfile: '', myCoverLetter: '' },
-    { id: 2, title: 'Product Manager', company: 'Wayne Enterprises', location: 'Gotham City', posted: getInitialDate(3), applicationDate: getInitialDate(2), url: 'https://example.com/job/2', description: 'Lead the product development lifecycle for our new line of public safety solutions. Experience in hardware and software is a plus.', status: 'applied', internalNotes: '', myShortProfile: '', myCoverLetter: '' },
-    { id: 3, title: 'UX/UI Designer', company: 'Cyberdyne Systems', location: 'Sunnyvale, CA', posted: getInitialDate(7), applicationDate: '', url: 'https://example.com/job/3', description: 'Design intuitive and engaging user experiences for our global defense network. Strong portfolio in complex systems required.', status: 'to apply', internalNotes: 'Need to tailor my portfolio before applying. Focus on the Skynet project.', myShortProfile: '', myCoverLetter: '' },
-    { id: 4, title: 'Backend Developer (Go)', company: 'Oscorp', location: 'New York, NY', posted: getInitialDate(8), applicationDate: getInitialDate(5), url: 'https://example.com/job/4', description: 'Develop and maintain high-performance backend services for genetic research applications. Experience with large-scale databases is essential.', status: 'applied', internalNotes: '', myShortProfile: '', myCoverLetter: '' },
-    { id: 5, title: 'Data Scientist', company: 'Tyrell Corporation', location: 'Los Angeles, CA', posted: getInitialDate(14), applicationDate: '', url: 'https://example.com/job/5', description: 'Analyze and interpret complex data sets to create more-human-than-human replicants. Advanced degree in a quantitative field preferred.', status: 'to apply', internalNotes: '', myShortProfile: '', myCoverLetter: '' },
-];
-
-const initialDocuments: DocumentItem[] = [
-    { id: 'doc-1', name: 'Standard CV', type: 'cv', fileName: 'my_cv_2024.pdf', lastUpdated: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), textExtract: 'Key skills: React, TypeScript, GraphQL. Over 5 years of experience building scalable web applications.' },
-    { id: 'doc-2', name: 'Cover Letter for Stark Industries', type: 'coverLetter', textExtract: 'Expressing strong interest in the Senior Frontend Engineer position and highlighting alignment with Stark Industries\' mission.' },
-    { id: 'doc-3', name: 'Professional References', type: 'references', fileName: 'references.docx', lastUpdated: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), textExtract: ''  },
-];
-
-
 export const App: FC = () => {
   const DESKTOP_BREAKPOINT = 1024;
   
@@ -53,44 +34,32 @@ export const App: FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Global State
-  const [theme, setTheme] = useState('light');
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [uiLanguage, setUiLanguage] = useState<LanguageCode>('DE');
-  // Fix: Use Firebase v8 User type
-  const [user, setUser] = useState<firebase.User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const isAuthenticated = !!user;
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   
   // Generator State
-  const [cvContent, setCvContent] = useState(() => localStorage.getItem('cvContent') || '');
-  const [jobDescriptionContent, setJobDescriptionContent] = useState(() => localStorage.getItem('jobDescriptionContent') || '');
+  const [cvContent, setCvContent] = useState('');
+  const [jobDescriptionContent, setJobDescriptionContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState<React.ReactNode>('');
   const [error, setError] = useState('');
-  const [keywords, setKeywords] = useState<string[]>(() => JSON.parse(localStorage.getItem('keywords') || '[]'));
-  const [coverLetter, setCoverLetter] = useState(() => localStorage.getItem('coverLetter') || '');
-  const [shortProfile, setShortProfile] = useState(() => localStorage.getItem('shortProfile') || '');
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [coverLetter, setCoverLetter] = useState('');
+  const [shortProfile, setShortProfile] = useState('');
   const [isInputOpen, setIsInputOpen] = useState(true);
   const [isOutputOpen, setIsOutputOpen] = useState(false);
   const [sourceJob, setSourceJob] = useState<Job | null>(null);
 
-  // Shared State
-  const [documents, setDocuments] = useState<DocumentItem[]>(() => {
-    const savedDocuments = localStorage.getItem('documents');
-    return savedDocuments ? JSON.parse(savedDocuments) : initialDocuments;
-  });
-  const [jobs, setJobs] = useState<Job[]>(() => {
-    const savedJobs = localStorage.getItem('jobs');
-    if (savedJobs) {
-        return JSON.parse(savedJobs);
-    }
-    return initialJobs;
-  });
-  const [userProfiles, setUserProfiles] = useState<UserProfile[]>(() => {
-    const savedProfiles = localStorage.getItem('userProfiles');
-    return savedProfiles ? JSON.parse(savedProfiles) : [];
-  });
+  // Data State
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
+  
   const [isSelectCvModalOpen, setIsSelectCvModalOpen] = useState(false);
   const [isSelectJobModalOpen, setIsSelectJobModalOpen] = useState(false);
 
@@ -112,54 +81,87 @@ export const App: FC = () => {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // --- Data Fetching and Management ---
+  const fetchUserData = async (userId: string) => {
+      const { data: jobsData, error: jobsError } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+
+      if (jobsError) console.error('Error fetching jobs:', jobsError);
+      else setJobs(jobsData || []);
+
+      const { data: documentsData, error: documentsError } = await supabase
+          .from('documents')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+      
+      if (documentsError) console.error('Error fetching documents:', documentsError);
+      else setDocuments(documentsData || []);
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId);
+      
+      if (profileError) console.error('Error fetching profiles:', profileError);
+      else if (profileData) {
+          const profiles = profileData.map(p => ({
+              uid: p.id,
+              firstName: p.first_name,
+              lastName: p.last_name,
+              defaultLanguage: p.default_language,
+              gender: p.gender,
+          }));
+          setUserProfiles(profiles);
+          // Set UI language from the first profile found
+          if(profiles[0]?.defaultLanguage) {
+            setUiLanguage(profiles[0].defaultLanguage);
+          }
+      }
+  };
+
+  const clearUserData = () => {
+      setJobs([]);
+      setDocuments([]);
+      setUserProfiles([]);
+  };
+
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+    const getSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const currentUser = session?.user ?? null;
         setUser(currentUser);
         if (currentUser) {
-            // Check if a profile exists, if not, create one
-            const profileExists = userProfiles.some(p => p.uid === currentUser.uid);
-            if (!profileExists) {
-                const nameParts = currentUser.displayName?.split(' ') || [];
-                const firstName = nameParts[0] || '';
-                const lastName = nameParts.slice(1).join(' ') || '';
-
-                const newProfile: UserProfile = {
-                    uid: currentUser.uid,
-                    firstName: firstName,
-                    lastName: lastName,
-                    defaultLanguage: uiLanguage,
-                    gender: 'unspecified',
-                };
-                setUserProfiles(prev => [...prev, newProfile]);
-            }
+            await fetchUserData(currentUser.id);
         }
         setIsAuthLoading(false);
+    };
+
+    getSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+
+        if (currentUser) {
+            setIsAuthModalOpen(false); // Close auth modal on successful login
+            await fetchUserData(currentUser.id);
+        } else {
+            clearUserData();
+        }
     });
-    return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only once on mount
 
-  // Persist generator content to localStorage
-  useEffect(() => { localStorage.setItem('cvContent', cvContent); }, [cvContent]);
-  useEffect(() => { localStorage.setItem('jobDescriptionContent', jobDescriptionContent); }, [jobDescriptionContent]);
-  useEffect(() => { localStorage.setItem('keywords', JSON.stringify(keywords)); }, [keywords]);
-  useEffect(() => { localStorage.setItem('coverLetter', coverLetter); }, [coverLetter]);
-  useEffect(() => { localStorage.setItem('shortProfile', shortProfile); }, [shortProfile]);
-  useEffect(() => { localStorage.setItem('jobs', JSON.stringify(jobs)); }, [jobs]);
-  useEffect(() => { localStorage.setItem('documents', JSON.stringify(documents)); }, [documents]);
-  useEffect(() => { localStorage.setItem('userProfiles', JSON.stringify(userProfiles)); }, [userProfiles]);
-
+    return () => subscription.unsubscribe();
+  }, []);
 
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
-  };
-
-  const handleLoginSuccess = () => {
-      // The onAuthStateChanged listener will handle the user state update.
-      // This function's only job is to close the modal.
-      setIsAuthModalOpen(false);
   };
 
   const handleLogout = () => {
@@ -168,14 +170,79 @@ export const App: FC = () => {
   
   const handleConfirmLogout = async () => {
       try {
-          await auth.signOut();
+          await supabase.auth.signOut();
           setIsLogoutConfirmOpen(false);
           setCurrentPage('landing'); // Redirect to landing page on logout
       } catch (error) {
           console.error("Error signing out: ", error);
-          // Optionally set an error message to display to the user
       }
   };
+  
+  // --- CRUD for Jobs ---
+  const addJob = async (jobData: Omit<Job, 'id' | 'user_id' | 'created_at'>) => {
+    if (!user) return;
+    const { data, error } = await supabase.from('jobs').insert({ ...jobData, user_id: user.id }).select();
+    if (error) {
+      console.error('Error adding job:', error);
+    } else if (data) {
+      setJobs(prev => [data[0], ...prev]);
+    }
+    return { data, error };
+  };
+
+  const updateJob = async (jobData: Partial<Job>) => {
+    if (!jobData.id) return;
+    const { data, error } = await supabase.from('jobs').update(jobData).eq('id', jobData.id).select();
+    if (error) {
+      console.error('Error updating job:', error);
+    } else if (data) {
+      setJobs(prev => prev.map(j => j.id === jobData.id ? data[0] : j));
+    }
+  };
+
+  const deleteJob = async (jobId: string) => {
+    const { error } = await supabase.from('jobs').delete().eq('id', jobId);
+    if (error) {
+      console.error('Error deleting job:', error);
+    } else {
+      setJobs(prev => prev.filter(j => j.id !== jobId));
+    }
+  };
+
+  // --- CRUD for Documents ---
+  const addDocument = async (docData: Omit<DocumentItem, 'id' | 'user_id' | 'created_at'>) => {
+    if (!user) return null;
+    const { data, error } = await supabase.from('documents').insert({ ...docData, user_id: user.id }).select();
+    if (error) {
+      console.error('Error adding document:', error);
+      return null;
+    }
+    if (data) {
+        setDocuments(prev => [data[0], ...prev]);
+        return data[0];
+    }
+    return null;
+  };
+
+  const updateDocument = async (docData: Partial<DocumentItem>) => {
+    if (!docData.id) return;
+    const { data, error } = await supabase.from('documents').update(docData).eq('id', docData.id).select();
+    if (error) {
+      console.error('Error updating document:', error);
+    } else if (data) {
+      setDocuments(prev => prev.map(d => d.id === docData.id ? data[0] : d));
+    }
+  };
+
+  const deleteDocument = async (docId: string) => {
+    const { error } = await supabase.from('documents').delete().eq('id', docId);
+    if (error) {
+      console.error('Error deleting document:', error);
+    } else {
+      setDocuments(prev => prev.filter(d => d.id !== docId));
+    }
+  };
+
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<string>>) => {
     const file = event.target.files?.[0];
@@ -500,18 +567,30 @@ ${extractedKeywords.join(', ')}`;
                         setIsOutputOpen={setIsOutputOpen}
                         setLoadingMessage={setLoadingMessage}
                         jobs={jobs}
-                        setJobs={setJobs}
+                        onUpdateJob={updateJob}
                         isAuthenticated={isAuthenticated}
                         openAuthModal={() => setIsAuthModalOpen(true)}
                         sourceJob={sourceJob}
                         setSourceJob={setSourceJob}
                       />;
           case 'jobs':
-              return <JobsListPage t={t} jobs={jobs} setJobs={setJobs} />;
+              return <JobsListPage 
+                        t={t}
+                        jobs={jobs}
+                        onAddJob={addJob}
+                        onUpdateJob={updateJob}
+                        onDeleteJob={deleteJob}
+                     />;
           case 'documents':
-              return <MyDocumentsPage t={t} documents={documents} setDocuments={setDocuments} />;
+              return <MyDocumentsPage 
+                        t={t}
+                        documents={documents}
+                        onAddDocument={addDocument}
+                        onUpdateDocument={updateDocument}
+                        onDeleteDocument={deleteDocument}
+                     />;
           case 'profile':
-              const currentUserProfile = user ? userProfiles.find(p => p.uid === user.uid) : null;
+              const currentUserProfile = user ? userProfiles.find(p => p.uid === user.id) : null;
               if (!user || !currentUserProfile) {
                   setCurrentPage('landing');
                   return null; // Redirect if not logged in or profile not found
@@ -549,7 +628,6 @@ ${extractedKeywords.join(', ')}`;
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        onLoginSuccess={handleLoginSuccess}
         t={t}
       />
       <ConfirmationModal
@@ -637,7 +715,7 @@ ${extractedKeywords.join(', ')}`;
                           }>
                               <div className="dropdown-header">
                                   <div className="dropdown-user-info">
-                                      {user.displayName && <span className="dropdown-user-name">{user.displayName}</span>}
+                                      {user.user_metadata.full_name && <span className="dropdown-user-name">{user.user_metadata.full_name}</span>}
                                       {user.email && <span className="dropdown-user-email">{user.email}</span>}
                                   </div>
                               </div>
