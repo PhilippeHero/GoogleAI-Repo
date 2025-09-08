@@ -68,9 +68,9 @@ export const App: FC = () => {
 
   // Shared State
   const [documents, setDocuments] = useState<DocumentItem[]>(() => [
-    { id: 'doc-1', name: 'Standard CV', type: 'cv', fileName: 'my_cv_2024.pdf', lastUpdated: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
-    { id: 'doc-2', name: 'Cover Letter for Stark Industries', type: 'coverLetter' },
-    { id: 'doc-3', name: 'Professional References', type: 'references', fileName: 'references.docx', lastUpdated: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()  },
+    { id: 'doc-1', name: 'Standard CV', type: 'cv', fileName: 'my_cv_2024.pdf', lastUpdated: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), textExtract: 'Key skills: React, TypeScript, GraphQL. Over 5 years of experience building scalable web applications.' },
+    { id: 'doc-2', name: 'Cover Letter for Stark Industries', type: 'coverLetter', textExtract: 'Expressing strong interest in the Senior Frontend Engineer position and highlighting alignment with Stark Industries\' mission.' },
+    { id: 'doc-3', name: 'Professional References', type: 'references', fileName: 'references.docx', lastUpdated: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), textExtract: ''  },
   ]);
   const [jobs, setJobs] = useState<Job[]>(() => {
     const savedJobs = localStorage.getItem('jobs');

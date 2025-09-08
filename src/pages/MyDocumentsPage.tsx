@@ -118,7 +118,7 @@ const DocumentEditSidePane: FC<{
 
     if (!formData) return null;
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => prev ? { ...prev, [name]: value } : null);
     };
@@ -189,6 +189,18 @@ const DocumentEditSidePane: FC<{
                                 <option key={type.id} value={type.id}>{t(type.nameKey)}</option>
                             ))}
                         </select>
+
+                        <div className="form-group-expand" style={{marginTop: '1rem'}}>
+                            <label htmlFor="edit-doc-textExtract">{t('docColumnTextExtract')}</label>
+                            <Textarea 
+                                id="edit-doc-textExtract" 
+                                name="textExtract" 
+                                value={formData.textExtract || ''} 
+                                onChange={handleChange}
+                                placeholder={t('textExtractPlaceholder')}
+                            />
+                        </div>
+
 
                         <div className="form-group-expand" style={{marginTop: '1rem'}}>
                             <div className="card-header-wrapper" style={{marginBottom: '0.5rem'}}>
@@ -289,6 +301,7 @@ export const MyDocumentsPage: FC<{
                 id: `doc-${Date.now()}`,
                 name: newDocumentName,
                 type: newDocumentType,
+                textExtract: '',
             };
             setDocuments([newDoc, ...documents]);
             setNewDocumentName('');
@@ -299,6 +312,7 @@ export const MyDocumentsPage: FC<{
                 id: `doc-${Date.now()}`,
                 name: '', // Empty name
                 type: newDocumentType,
+                textExtract: '',
             };
             setDocuments(docs => [newDoc, ...docs]);
             setSelectedDocument(newDoc);
@@ -338,7 +352,8 @@ export const MyDocumentsPage: FC<{
                 fileName: file.name,
                 fileContent: fileContent,
                 fileMimeType: file.type,
-                lastUpdated: new Date().toISOString()
+                lastUpdated: new Date().toISOString(),
+                textExtract: '',
             };
             
             setDocuments(docs => [newDoc, ...docs]);
@@ -465,6 +480,7 @@ export const MyDocumentsPage: FC<{
                                 <th>{t('docNameColumn')}</th>
                                 <th>{t('docTypeColumn')}</th>
                                 <th>{t('docFileNameColumn')}</th>
+                                <th>{t('docColumnTextExtract')}</th>
                                 <th>{t('docLastUpdatedColumn')}</th>
                             </tr>
                         </thead>
@@ -474,6 +490,7 @@ export const MyDocumentsPage: FC<{
                                     <td>{doc.name}</td>
                                     <td>{getDocTypeName(doc.type)}</td>
                                     <td>{doc.fileName || '-'}</td>
+                                    <td><div className="truncate-text" style={{maxWidth: '200px'}}>{doc.textExtract}</div></td>
                                     <td>{doc.lastUpdated ? formatDate(doc.lastUpdated) : '-'}</td>
                                 </tr>
                             ))}

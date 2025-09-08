@@ -26,6 +26,7 @@ export type DocumentItem = {
     fileContent?: string; // Data URL of the file
     fileMimeType?: string; // Mime type of the file
     lastUpdated?: string; // ISO String
+    textExtract?: string;
 };
 
 export type ExtractedJobData = Omit<Job, 'id' | 'applicationDate' | 'status'>;
