@@ -17,7 +17,7 @@ export const SelectCvModal: FC<{
 }> = ({ isOpen, onClose, onSelect, documents, t }) => {
   if (!isOpen) return null;
 
-  const selectableCVs = documents.filter(doc => doc.type === 'cv' && doc.fileContent && doc.fileName);
+  const selectableCVs = documents.filter(doc => doc.type === 'cv' && (doc.fileContent || doc.textExtract));
 
   const handleSelect = (doc: DocumentItem) => {
       onSelect(doc);
@@ -34,7 +34,7 @@ export const SelectCvModal: FC<{
                     <li key={doc.id}>
                         <button onClick={() => handleSelect(doc)}>
                             <span className="selection-list-name">{doc.name}</span>
-                            <span className="selection-list-filename">{doc.fileName}</span>
+                            <span className="selection-list-filename">{doc.fileName || t('manualEntryLabel')}</span>
                         </button>
                     </li>
                 ))}

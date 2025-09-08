@@ -36,6 +36,12 @@ const initialJobs: Job[] = [
     { id: 5, title: 'Data Scientist', company: 'Tyrell Corporation', location: 'Los Angeles, CA', posted: getInitialDate(14), applicationDate: '', url: 'https://example.com/job/5', description: 'Analyze and interpret complex data sets to create more-human-than-human replicants. Advanced degree in a quantitative field preferred.', status: 'to apply', textExtract: '' },
 ];
 
+const initialDocuments: DocumentItem[] = [
+    { id: 'doc-1', name: 'Standard CV', type: 'cv', fileName: 'my_cv_2024.pdf', lastUpdated: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), textExtract: 'Key skills: React, TypeScript, GraphQL. Over 5 years of experience building scalable web applications.' },
+    { id: 'doc-2', name: 'Cover Letter for Stark Industries', type: 'coverLetter', textExtract: 'Expressing strong interest in the Senior Frontend Engineer position and highlighting alignment with Stark Industries\' mission.' },
+    { id: 'doc-3', name: 'Professional References', type: 'references', fileName: 'references.docx', lastUpdated: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), textExtract: ''  },
+];
+
 
 export const App: FC = () => {
   const DESKTOP_BREAKPOINT = 1024;
@@ -67,11 +73,10 @@ export const App: FC = () => {
   const [isOutputOpen, setIsOutputOpen] = useState(false);
 
   // Shared State
-  const [documents, setDocuments] = useState<DocumentItem[]>(() => [
-    { id: 'doc-1', name: 'Standard CV', type: 'cv', fileName: 'my_cv_2024.pdf', lastUpdated: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), textExtract: 'Key skills: React, TypeScript, GraphQL. Over 5 years of experience building scalable web applications.' },
-    { id: 'doc-2', name: 'Cover Letter for Stark Industries', type: 'coverLetter', textExtract: 'Expressing strong interest in the Senior Frontend Engineer position and highlighting alignment with Stark Industries\' mission.' },
-    { id: 'doc-3', name: 'Professional References', type: 'references', fileName: 'references.docx', lastUpdated: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), textExtract: ''  },
-  ]);
+  const [documents, setDocuments] = useState<DocumentItem[]>(() => {
+    const savedDocuments = localStorage.getItem('documents');
+    return savedDocuments ? JSON.parse(savedDocuments) : initialDocuments;
+  });
   const [jobs, setJobs] = useState<Job[]>(() => {
     const savedJobs = localStorage.getItem('jobs');
     if (savedJobs) {
@@ -119,6 +124,7 @@ export const App: FC = () => {
   useEffect(() => { localStorage.setItem('coverLetter', coverLetter); }, [coverLetter]);
   useEffect(() => { localStorage.setItem('shortProfile', shortProfile); }, [shortProfile]);
   useEffect(() => { localStorage.setItem('jobs', JSON.stringify(jobs)); }, [jobs]);
+  useEffect(() => { localStorage.setItem('documents', JSON.stringify(documents)); }, [documents]);
 
 
   const toggleTheme = () => {
@@ -211,90 +217,96 @@ export const App: FC = () => {
   };
   
   const handleSelectCv = async (doc: DocumentItem) => {
-    if (!doc.fileContent || !doc.fileMimeType) return;
     setError('');
 
-    try {
-        if (doc.fileMimeType.startsWith('text/')) {
-            const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
-            const binaryString = atob(base64Content);
-            const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
-            const decoder = new TextDecoder();
-            setCvContent(decoder.decode(bytes));
-        } 
-        else if (doc.fileMimeType === 'application/pdf') {
-            setLoadingMessage(t('extractingPdfText'));
-            setIsLoading(true);
-            
-            const pdfData = atob(doc.fileContent.substring(doc.fileContent.indexOf(',') + 1));
-            const loadingTask = pdfjsLib.getDocument({ data: pdfData });
-            const pdf = await loadingTask.promise;
-            
-            let fullText = '';
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => ('str' in item ? item.str : '')).join(' ');
-                fullText += pageText + '\n';
+    // Prioritize file content if it exists
+    if (doc.fileContent && doc.fileMimeType) {
+        try {
+            if (doc.fileMimeType.startsWith('text/')) {
+                const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
+                const binaryString = atob(base64Content);
+                const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+                const decoder = new TextDecoder();
+                setCvContent(decoder.decode(bytes));
+            } 
+            else if (doc.fileMimeType === 'application/pdf') {
+                setLoadingMessage(t('extractingPdfText'));
+                setIsLoading(true);
+                
+                const pdfData = atob(doc.fileContent.substring(doc.fileContent.indexOf(',') + 1));
+                const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+                const pdf = await loadingTask.promise;
+                
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => ('str' in item ? item.str : '')).join(' ');
+                    fullText += pageText + '\n';
+                }
+                setCvContent(fullText.trim());
             }
-            setCvContent(fullText.trim());
-        }
-        else if (
-            doc.fileMimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-            doc.fileMimeType === 'application/msword' ||
-            doc.fileName?.endsWith('.docx') ||
-            doc.fileName?.endsWith('.doc')
-        ) {
-            setLoadingMessage(t('extractingDocxText'));
-            setIsLoading(true);
-            const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
-            const binaryString = atob(base64Content);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
+            else if (
+                doc.fileMimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                doc.fileMimeType === 'application/msword' ||
+                doc.fileName?.endsWith('.docx') ||
+                doc.fileName?.endsWith('.doc')
+            ) {
+                setLoadingMessage(t('extractingDocxText'));
+                setIsLoading(true);
+                const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
+                const binaryString = atob(base64Content);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const arrayBuffer = bytes.buffer;
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                setCvContent(result.value);
             }
-            const arrayBuffer = bytes.buffer;
-            const result = await mammoth.extractRawText({ arrayBuffer });
-            setCvContent(result.value);
-        }
-        else if (
-            doc.fileMimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-            doc.fileMimeType === 'application/vnd.ms-excel' ||
-            doc.fileName?.endsWith('.xlsx') ||
-            doc.fileName?.endsWith('.xls')
-        ) {
-            setLoadingMessage(t('extractingXlsxText'));
-            setIsLoading(true);
-            const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
-            const binaryString = atob(base64Content);
-            const workbook = xlsx.read(binaryString, { type: 'binary' });
-            let fullText = '';
-            workbook.SheetNames.forEach(sheetName => {
-                const worksheet = workbook.Sheets[sheetName];
-                const sheetData = xlsx.utils.sheet_to_csv(worksheet);
-                fullText += sheetData + '\n';
-            });
-            setCvContent(fullText.trim());
-        }
-        else {
-            const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
-            const binaryString = atob(base64Content);
-            const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
-            const decoder = new TextDecoder();
-            const textContent = decoder.decode(bytes);
+            else if (
+                doc.fileMimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                doc.fileMimeType === 'application/vnd.ms-excel' ||
+                doc.fileName?.endsWith('.xlsx') ||
+                doc.fileName?.endsWith('.xls')
+            ) {
+                setLoadingMessage(t('extractingXlsxText'));
+                setIsLoading(true);
+                const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
+                const binaryString = atob(base64Content);
+                const workbook = xlsx.read(binaryString, { type: 'binary' });
+                let fullText = '';
+                workbook.SheetNames.forEach(sheetName => {
+                    const worksheet = workbook.Sheets[sheetName];
+                    const sheetData = xlsx.utils.sheet_to_csv(worksheet);
+                    fullText += sheetData + '\n';
+                });
+                setCvContent(fullText.trim());
+            }
+            else {
+                const base64Content = doc.fileContent.substring(doc.fileContent.indexOf(',') + 1);
+                const binaryString = atob(base64Content);
+                const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+                const decoder = new TextDecoder();
+                const textContent = decoder.decode(bytes);
 
-            if (textContent.length > 0 && !textContent.startsWith('%PDF-')) {
-                 setCvContent(textContent);
-            } else {
-                 throw new Error("Unsupported file type for text extraction.");
+                if (textContent.length > 0 && !textContent.startsWith('%PDF-')) {
+                     setCvContent(textContent);
+                } else {
+                     throw new Error("Unsupported file type for text extraction.");
+                }
             }
+        } catch (e) {
+            console.error("Failed to extract content from selected file:", e);
+            setError(t('errorParsingFile'));
+        } finally {
+            setIsLoading(false);
         }
-    } catch (e) {
-        console.error("Failed to extract content from selected file:", e);
-        setError(t('errorParsingFile'));
-    } finally {
-        setIsLoading(false);
+    }
+    // Fallback to textExtract if no file content
+    else if (doc.textExtract) {
+        setCvContent(doc.textExtract);
     }
   };
   

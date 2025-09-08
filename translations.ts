@@ -172,6 +172,7 @@ export const translations = {
     successTitle: 'Success!',
     continueButton: 'Continue',
     manageProfileButton: 'Manage Profile',
+    manualEntryLabel: 'Manual Entry',
   },
   DE: {
     appTitle: 'KI-Anschreiben-Generator',
@@ -339,6 +340,7 @@ export const translations = {
     successTitle: 'Erfolg!',
     continueButton: 'Weiter',
     manageProfileButton: 'Profil verwalten',
+    manualEntryLabel: 'Manueller Eintrag',
   },
   FR: {
     appTitle: 'Générateur de lettre de motivation IA',
@@ -506,5 +508,6 @@ export const translations = {
     successTitle: 'Succès !',
     continueButton: 'Continuer',
     manageProfileButton: 'Gérer le profil',
+    manualEntryLabel: 'Saisie manuelle',
   },
 };
