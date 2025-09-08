@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
+export type JobStatus = 'to apply' | 'do not apply' | 'applied';
+
 export type Job = {
   id: number;
   title: string;
@@ -12,6 +14,7 @@ export type Job = {
   applicationDate: string; // Stored as YYYY-MM-DD
   description: string;
   url: string;
+  status: JobStatus;
 };
 
 export type DocumentItem = {
@@ -24,6 +27,6 @@ export type DocumentItem = {
     lastUpdated?: string; // ISO String
 };
 
-export type ExtractedJobData = Omit<Job, 'id' | 'applicationDate'>;
+export type ExtractedJobData = Omit<Job, 'id' | 'applicationDate' | 'status'>;
 
 export type Page = 'landing' | 'generator' | 'jobs' | 'documents';

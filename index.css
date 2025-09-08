@@ -281,6 +281,11 @@ h1 {
   margin: 0 auto;
 }
 
+.main-content.page-jobs {
+  max-width: 1380px;
+  margin: 0;
+}
+
 .workflow-description {
   text-align: left;
   color: hsl(var(--muted-foreground));

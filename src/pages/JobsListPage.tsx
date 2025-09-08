@@ -6,18 +6,18 @@ import React, { useState, useMemo, FC, useEffect } from 'react';
 import saveAs from 'file-saver';
 import { GoogleGenAI, Type } from '@google/genai';
 import { translations } from '../../translations';
-import { Job, ExtractedJobData } from '../types';
+import { Job, ExtractedJobData, JobStatus } from '../types';
 import { getInitialDate, getTodayDate, isDateBeforeTomorrow, formatDate } from '../utils';
 import { Card, Button, ConfirmationModal, Textarea } from '../components/ui';
-import { ExportIcon, SortIcon, CheckCircleIcon } from '../components/icons';
+import { FileSpreadsheetIcon, SortIcon, CheckCircleIcon } from '../components/icons';
 
 
 const initialJobs: Job[] = [
-    { id: 1, title: 'Senior Frontend Engineer', company: 'Stark Industries', location: 'New York, NY', posted: getInitialDate(2), applicationDate: getInitialDate(1), url: 'https://example.com/job/1', description: 'Seeking a talented frontend engineer to build next-generation UIs for our advanced projects. Must be proficient in React and Stark-Tech.' },
-    { id: 2, title: 'Product Manager', company: 'Wayne Enterprises', location: 'Gotham City', posted: getInitialDate(3), applicationDate: getInitialDate(2), url: 'https://example.com/job/2', description: 'Lead the product development lifecycle for our new line of public safety solutions. Experience in hardware and software is a plus.' },
-    { id: 3, title: 'UX/UI Designer', company: 'Cyberdyne Systems', location: 'Sunnyvale, CA', posted: getInitialDate(7), applicationDate: '', url: 'https://example.com/job/3', description: 'Design intuitive and engaging user experiences for our global defense network. Strong portfolio in complex systems required.' },
-    { id: 4, title: 'Backend Developer (Go)', company: 'Oscorp', location: 'New York, NY', posted: getInitialDate(8), applicationDate: getInitialDate(5), url: 'https://example.com/job/4', description: 'Develop and maintain high-performance backend services for genetic research applications. Experience with large-scale databases is essential.' },
-    { id: 5, title: 'Data Scientist', company: 'Tyrell Corporation', location: 'Los Angeles, CA', posted: getInitialDate(14), applicationDate: '', url: 'https://example.com/job/5', description: 'Analyze and interpret complex data sets to create more-human-than-human replicants. Advanced degree in a quantitative field preferred.' },
+    { id: 1, title: 'Senior Frontend Engineer', company: 'Stark Industries', location: 'New York, NY', posted: getInitialDate(2), applicationDate: getInitialDate(1), url: 'https://example.com/job/1', description: 'Seeking a talented frontend engineer to build next-generation UIs for our advanced projects. Must be proficient in React and Stark-Tech.', status: 'applied' },
+    { id: 2, title: 'Product Manager', company: 'Wayne Enterprises', location: 'Gotham City', posted: getInitialDate(3), applicationDate: getInitialDate(2), url: 'https://example.com/job/2', description: 'Lead the product development lifecycle for our new line of public safety solutions. Experience in hardware and software is a plus.', status: 'applied' },
+    { id: 3, title: 'UX/UI Designer', company: 'Cyberdyne Systems', location: 'Sunnyvale, CA', posted: getInitialDate(7), applicationDate: '', url: 'https://example.com/job/3', description: 'Design intuitive and engaging user experiences for our global defense network. Strong portfolio in complex systems required.', status: 'to apply' },
+    { id: 4, title: 'Backend Developer (Go)', company: 'Oscorp', location: 'New York, NY', posted: getInitialDate(8), applicationDate: getInitialDate(5), url: 'https://example.com/job/4', description: 'Develop and maintain high-performance backend services for genetic research applications. Experience with large-scale databases is essential.', status: 'applied' },
+    { id: 5, title: 'Data Scientist', company: 'Tyrell Corporation', location: 'Los Angeles, CA', posted: getInitialDate(14), applicationDate: '', url: 'https://example.com/job/5', description: 'Analyze and interpret complex data sets to create more-human-than-human replicants. Advanced degree in a quantitative field preferred.', status: 'to apply' },
 ];
 
 const JobModal: FC<{
@@ -28,22 +28,31 @@ const JobModal: FC<{
   t: (key: keyof typeof translations['EN']) => string;
 }> = ({ job, isOpen, onClose, onSave, t }) => {
   const [formData, setFormData] = useState<Partial<Job> | null>(job);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     setFormData(job);
+    setError(''); // Clear errors when modal opens or job changes
   }, [job]);
 
   if (!isOpen || !formData) return null;
 
   const isEditing = formData.id !== undefined;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => prev ? { ...prev, [name]: value } : null);
+    if (error) {
+      setError('');
+    }
   };
 
   const handleSave = () => {
     if (formData) {
+      if (formData.status === 'applied' && !formData.applicationDate) {
+        setError(t('errorApplicationDateRequired'));
+        return;
+      }
       onSave(formData);
     }
   };
@@ -68,8 +77,18 @@ const JobModal: FC<{
           
           <label htmlFor="posted">{t('jobColumnPosted')}</label>
           <input id="posted" name="posted" type="date" value={formData.posted || ''} onChange={handleChange} className="input" />
+
+          <label htmlFor="status">{t('jobColumnStatus')}</label>
+            <select id="status" name="status" value={formData.status || 'to apply'} onChange={handleChange} className="input">
+                <option value="to apply">{t('jobStatusToApply')}</option>
+                <option value="do not apply">{t('jobStatusDoNotApply')}</option>
+                <option value="applied">{t('jobStatusApplied')}</option>
+            </select>
           
-          <label htmlFor="applicationDate">{t('jobColumnApplicationDate')}</label>
+          <label htmlFor="applicationDate">
+            {t('jobColumnApplicationDate')}
+            {formData.status === 'applied' && <span style={{ color: 'hsl(var(--destructive))', marginLeft: '0.25rem' }}>*</span>}
+          </label>
           <div className="field-with-icon">
             <input id="applicationDate" name="applicationDate" type="date" value={formData.applicationDate || ''} onChange={handleChange} className="input" />
             {isDateBeforeTomorrow(formData.applicationDate || '') && (
@@ -78,6 +97,8 @@ const JobModal: FC<{
               </span>
             )}
           </div>
+          {error && <p className="error-inline" style={{ marginTop: '0.25rem' }}>{error}</p>}
+
 
           <label htmlFor="description">{t('jobColumnDescription')}</label>
           <Textarea id="description" name="description" value={formData.description || ''} onChange={handleChange} placeholder="" style={{minHeight: '100px'}} />
@@ -101,20 +122,30 @@ const JobEditSidePane: FC<{
 }> = ({ job, isOpen, onClose, onSave, onDelete, t }) => {
   const [formData, setFormData] = useState<Partial<Job> | null>(null);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     setFormData(job);
+    setError('');
   }, [job]);
 
   if (!formData) return null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => prev ? { ...prev, [name]: value } : null);
+    if (error) {
+        setError('');
+    }
   };
 
   const handleSave = () => {
     if (formData) {
+      if (formData.status === 'applied' && !formData.applicationDate) {
+        setError(t('errorApplicationDateRequired'));
+        return;
+      }
+      setError('');
       onSave(formData);
     }
   };
@@ -167,24 +198,36 @@ const JobEditSidePane: FC<{
 
             <label htmlFor="edit-url">{t('jobColumnUrl')}</label>
             <input id="edit-url" name="url" type="url" value={formData.url || ''} onChange={handleChange} className="input" />
+
+            <label htmlFor="edit-posted">{t('jobColumnPosted')}</label>
+            <input id="edit-posted" name="posted" type="date" value={formData.posted || ''} onChange={handleChange} className="input" />
             
             <div className="form-group-row">
-              <div className="form-group-column">
-                <label htmlFor="edit-posted">{t('jobColumnPosted')}</label>
-                <input id="edit-posted" name="posted" type="date" value={formData.posted || ''} onChange={handleChange} className="input" />
-              </div>
-              <div className="form-group-column">
-                <label htmlFor="edit-applicationDate">{t('jobColumnApplicationDate')}</label>
-                <div className="field-with-icon">
-                  <input id="edit-applicationDate" name="applicationDate" type="date" value={formData.applicationDate || ''} onChange={handleChange} className="input" />
-                  {isDateBeforeTomorrow(formData.applicationDate || '') && (
-                    <span title={t('applicationSubmittedTooltip')}>
-                      <CheckCircleIcon className="checkmark-icon" />
-                    </span>
-                  )}
+                <div className="form-group-column">
+                    <label htmlFor="edit-status">{t('jobColumnStatus')}</label>
+                    <select id="edit-status" name="status" value={formData.status || 'to apply'} onChange={handleChange} className="input">
+                        <option value="to apply">{t('jobStatusToApply')}</option>
+                        <option value="do not apply">{t('jobStatusDoNotApply')}</option>
+                        <option value="applied">{t('jobStatusApplied')}</option>
+                    </select>
                 </div>
-              </div>
+                <div className="form-group-column">
+                    <label htmlFor="edit-applicationDate">
+                        {t('jobColumnApplicationDate')}
+                        {formData.status === 'applied' && <span style={{ color: 'hsl(var(--destructive))', marginLeft: '0.25rem' }}>*</span>}
+                    </label>
+                    <div className="field-with-icon">
+                        <input id="edit-applicationDate" name="applicationDate" type="date" value={formData.applicationDate || ''} onChange={handleChange} className="input" />
+                        {isDateBeforeTomorrow(formData.applicationDate || '') && (
+                            <span title={t('applicationSubmittedTooltip')}>
+                                <CheckCircleIcon className="checkmark-icon" />
+                            </span>
+                        )}
+                    </div>
+                </div>
             </div>
+            {error && <p className="error-inline" style={{ marginTop: '-0.5rem', marginBottom: '1rem' }}>{error}</p>}
+
 
             <div className="form-group-expand">
               <label htmlFor="edit-description">{t('jobColumnDescription')}</label>
@@ -264,7 +307,7 @@ export const JobsListPage: FC<{ t: (key: keyof typeof translations['EN']) => str
     
     const handleAddJob = async () => {
         if (!jobUrl) {
-            setSelectedJob({ posted: getTodayDate() });
+            setSelectedJob({ posted: getTodayDate(), status: 'to apply' });
             setIsJobModalOpen(true);
             return;
         }
@@ -329,7 +372,7 @@ ${jobPageContent}`;
                 url: jobUrl,
             };
 
-            setSelectedJob(validatedData);
+            setSelectedJob({ ...validatedData, status: 'to apply' });
             setIsJobModalOpen(true);
             setJobUrl('');
 
@@ -365,6 +408,7 @@ ${jobPageContent}`;
                 applicationDate: jobData.applicationDate || '',
                 description: jobData.description || '',
                 url: jobData.url || '',
+                status: jobData.status || 'to apply',
             };
             setJobs([newJob, ...jobs]);
         }
@@ -376,8 +420,17 @@ ${jobPageContent}`;
         handleCloseAll();
     };
 
+    const getJobStatusName = (status: JobStatus) => {
+        switch (status) {
+            case 'to apply': return t('jobStatusToApply');
+            case 'do not apply': return t('jobStatusDoNotApply');
+            case 'applied': return t('jobStatusApplied');
+            default: return status;
+        }
+    };
+
     const handleExport = () => {
-        const headers = [t('jobColumnTitle'), t('jobColumnCompany'), t('jobColumnLocation'), t('jobColumnDescription'), t('jobColumnUrl'), t('jobColumnPosted'), t('jobColumnApplicationDate')];
+        const headers = [t('jobColumnTitle'), t('jobColumnCompany'), t('jobColumnLocation'), t('jobColumnDescription'), t('jobColumnUrl'), t('jobColumnPosted'), t('jobColumnApplicationDate'), t('jobColumnStatus')];
         const escapeCsv = (str: string) => `"${String(str || '').replace(/"/g, '""')}"`;
 
         const csvContent = [
@@ -390,6 +443,7 @@ ${jobPageContent}`;
                 escapeCsv(job.url),
                 escapeCsv(formatDate(job.posted)),
                 escapeCsv(formatDate(job.applicationDate)),
+                escapeCsv(getJobStatusName(job.status)),
             ].join(','))
         ].join('\n');
 
@@ -447,8 +501,8 @@ ${jobPageContent}`;
                 <div className="card-header-wrapper">
                   <h3 className="card-header">{t('jobsListTitle')}</h3>
                   <div className="card-header-actions">
-                    <Button onClick={handleExport} variant="secondary" className="btn-icon" aria-label={t('exportButtonLabel')}>
-                      <ExportIcon />
+                    <Button onClick={handleExport} variant="secondary" className="btn-icon" aria-label={t('exportButtonLabel')} title={t('exportButtonLabel')}>
+                      <FileSpreadsheetIcon />
                     </Button>
                   </div>
                 </div>
@@ -487,6 +541,9 @@ ${jobPageContent}`;
                                 <th className={getSortClasses('posted')} onClick={() => requestSort('posted')}>
                                   <div className="header-content"><span>{t('jobColumnPosted')}</span><SortIcon className="sort-icon" /></div>
                                 </th>
+                                <th className={getSortClasses('status')} onClick={() => requestSort('status')}>
+                                    <div className="header-content"><span>{t('jobColumnStatus')}</span><SortIcon className="sort-icon" /></div>
+                                </th>
                                 <th className={getSortClasses('applicationDate')} onClick={() => requestSort('applicationDate')}>
                                   <div className="header-content"><span>{t('jobColumnApplicationDate')}</span><SortIcon className="sort-icon" /></div>
                                 </th>
@@ -505,6 +562,7 @@ ${jobPageContent}`;
                                       </a>
                                     </td>
                                     <td>{formatDate(job.posted)}</td>
+                                    <td>{getJobStatusName(job.status)}</td>
                                     <td>
                                       <div className="field-with-icon justify-start">
                                         <span>{formatDate(job.applicationDate)}</span>

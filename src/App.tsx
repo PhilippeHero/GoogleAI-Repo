@@ -549,7 +549,7 @@ ${extractedKeywords.join(', ')}`;
 
               {error && <div className="error" role="alert">{error}</div>}
 
-              <main className="main-content">
+              <main className={`main-content page-${currentPage}`}>
                   {renderPage()}
               </main>
           </div>
