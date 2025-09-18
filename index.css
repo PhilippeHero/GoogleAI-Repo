@@ -136,15 +136,20 @@ body {
     font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.1s, color 0.1s;
+    transition: background-color 0.1s, color 0.1s, opacity 0.2s;
     text-align: left;
     white-space: nowrap;
     font-family: inherit;
 }
 
-.sidebar-nav button:hover {
+.sidebar-nav button:hover:not(:disabled) {
     background-color: hsl(var(--secondary));
     color: hsl(var(--foreground));
+}
+
+.sidebar-nav button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .sidebar-nav li.active button {
@@ -284,7 +289,8 @@ h1 {
 .main-content.page-generator,
 .main-content.page-jobs,
 .main-content.page-documents,
-.main-content.page-profile {
+.main-content.page-profile,
+.main-content.page-perfect-week {
   max-width: 1380px;
   margin: 0;
 }
@@ -1962,6 +1968,55 @@ textarea[readonly]:focus {
     color: hsl(var(--success));
     font-size: 0.875rem;
     font-weight: 500;
+}
+
+/* Perfect Week Page Styles */
+.chart-card {
+    min-height: 400px;
+}
+.chart-container {
+  width: 100%;
+  height: 350px;
+}
+.chart-container text {
+  font-size: 12px;
+  fill: hsl(var(--muted-foreground));
+}
+.chart-container .chart-grid-line {
+  stroke: hsl(var(--border));
+  stroke-dasharray: 2, 2;
+}
+.chart-container .chart-axis-line {
+  stroke: hsl(var(--muted-foreground));
+}
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+.chart-legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+.editable-table .input-cell {
+  padding: 0.25rem;
+}
+.editable-table .input-cell .input {
+  width: 80px;
+  text-align: center;
+  padding: 0.25rem 0.5rem;
+}
+.editable-table .save-cell {
+    width: 1%;
+    white-space: nowrap;
 }
 
 @media (max-width: 768px) {

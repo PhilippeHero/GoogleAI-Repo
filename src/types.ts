@@ -38,7 +38,7 @@ export type DocumentItem = {
 
 export type ExtractedJobData = Omit<Job, 'id' | 'applicationDate' | 'status' | 'user_id' | 'created_at'>;
 
-export type Page = 'landing' | 'generator' | 'jobs' | 'documents' | 'profile';
+export type Page = 'landing' | 'generator' | 'jobs' | 'documents' | 'profile' | 'perfect-week';
 
 export type Gender = 'man' | 'woman' | 'other' | 'unspecified';
 
@@ -48,4 +48,17 @@ export type UserProfile = {
   lastName: string;
   defaultLanguage: LanguageCode;
   gender: Gender;
+};
+
+export type WeeklyStat = {
+  id?: string; // UUID from Supabase, if it exists
+  user_id: string;
+  year: number;
+  weekNumber: number;
+  // Derived fields, not in DB
+  yearWeek: string; // "YYYY-WW"
+  applicationCount: number;
+  // Editable fields, in DB
+  interviews: number;
+  newContacts: number;
 };

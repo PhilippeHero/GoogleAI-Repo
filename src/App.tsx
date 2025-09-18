@@ -13,18 +13,19 @@ import type { User } from '@supabase/supabase-js';
 
 import { supabase } from './supabase';
 import { translations, LanguageCode } from '../translations';
-import { Page, DocumentItem, Job, UserProfile, Gender } from './types';
+import { Page, DocumentItem, Job, UserProfile, Gender, WeeklyStat } from './types';
 import { Button, Modal, DropdownMenu, ConfirmationModal } from './components/ui';
 import { AuthModal } from './components/AuthModal';
 import { SelectCvModal } from './components/SelectCvModal';
 import { SelectJobModal } from './components/SelectJobModal';
-import { HomeIcon, SunIcon, MoonIcon, SparkIcon, FileTextIcon, BriefcaseIcon, UserIcon, MenuIcon, LogInIcon, LogOutIcon, UserCircleIcon } from './components/icons';
+import { HomeIcon, SunIcon, MoonIcon, SparkIcon, FileTextIcon, BriefcaseIcon, UserIcon, MenuIcon, LogInIcon, LogOutIcon, UserCircleIcon, CalendarCheckIcon } from './components/icons';
 import { LandingPage } from './pages/LandingPage';
 import { GeneratorPage } from './pages/GeneratorPage';
 import { JobsListPage } from './pages/JobsListPage';
 import { MyDocumentsPage } from './pages/MyDocumentsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { AddDocumentModal } from './components/AddDocumentModal';
+import { PerfectWeekPage } from './pages/PerfectWeekPage';
 
 export const App: FC = () => {
   const DESKTOP_BREAKPOINT = 1024;
@@ -60,6 +61,7 @@ export const App: FC = () => {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
+  const [weeklyStats, setWeeklyStats] = useState<WeeklyStat[]>([]);
   
   const [isSelectCvModalOpen, setIsSelectCvModalOpen] = useState(false);
   const [isSelectJobModalOpen, setIsSelectJobModalOpen] = useState(false);
@@ -140,6 +142,28 @@ export const App: FC = () => {
         }));
         setDocuments(formattedDocuments);
       }
+      
+      const { data: weeklyStatsData, error: weeklyStatsError } = await supabase
+        .from('weekly_stats')
+        .select('*')
+        .eq('user_id', userId);
+    
+      if (weeklyStatsError) {
+        console.error('Error fetching weekly stats:', weeklyStatsError);
+      } else {
+        const formattedStats: WeeklyStat[] = (weeklyStatsData || []).map((stat: any) => ({
+          id: stat.id,
+          user_id: stat.user_id,
+          year: stat.year,
+          weekNumber: stat.week_number,
+          interviews: stat.interviews,
+          newContacts: stat.new_contacts,
+          // These are derived and will be calculated on the Perfect Week page
+          yearWeek: `${stat.year}-${String(stat.week_number).padStart(2, '0')}`,
+          applicationCount: 0,
+        }));
+        setWeeklyStats(formattedStats);
+      }
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -200,6 +224,7 @@ export const App: FC = () => {
       setJobs([]);
       setDocuments([]);
       setUserProfiles([]);
+      setWeeklyStats([]);
   };
 
   useEffect(() => {
@@ -412,6 +437,54 @@ export const App: FC = () => {
         setDocuments(prev => prev.filter(d => d.id !== docId));
     }
   };
+  
+    const upsertWeeklyStat = async (stat: Omit<WeeklyStat, 'applicationCount' | 'yearWeek'>) => {
+        if (!user) return;
+
+        const dataForSupabase = {
+          // id is needed for update, but should be omitted for insert on conflict.
+          // Supabase upsert handles this if the primary key is part of the object.
+          ...(stat.id && { id: stat.id }),
+          user_id: user.id,
+          year: stat.year,
+          week_number: stat.weekNumber,
+          interviews: stat.interviews,
+          new_contacts: stat.newContacts,
+        };
+
+        const { data, error } = await supabase
+          .from('weekly_stats')
+          .upsert(dataForSupabase, { onConflict: 'user_id,year,week_number' })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error upserting weekly stat:', error);
+        } else if (data) {
+          const upsertedStatFromDb = data;
+          const newStatForState: WeeklyStat = {
+            id: upsertedStatFromDb.id,
+            user_id: upsertedStatFromDb.user_id,
+            year: upsertedStatFromDb.year,
+            weekNumber: upsertedStatFromDb.week_number,
+            interviews: upsertedStatFromDb.interviews,
+            newContacts: upsertedStatFromDb.new_contacts,
+            yearWeek: `${upsertedStatFromDb.year}-${String(upsertedStatFromDb.week_number).padStart(2, '0')}`,
+            applicationCount: 0, // will be recalculated on the page
+          };
+
+          setWeeklyStats(prev => {
+            const existingIndex = prev.findIndex(s => s.year === newStatForState.year && s.weekNumber === newStatForState.weekNumber);
+            if (existingIndex > -1) {
+              const newStats = [...prev];
+              // Update existing stat with new DB data, preserving calculated fields if any.
+              newStats[existingIndex] = { ...newStats[existingIndex], ...newStatForState };
+              return newStats;
+            }
+            return [...prev, newStatForState];
+          });
+        }
+    };
 
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<string>>) => {
@@ -674,6 +747,7 @@ ${extractedKeywords.join(', ')}`;
         case 'jobs': return t('jobsListTitle');
         case 'documents': return t('myDocumentsTitle');
         case 'profile': return t('profileTitle');
+        case 'perfect-week': return t('perfectWeekTitle');
         default: return '';
     }
   };
@@ -685,6 +759,7 @@ ${extractedKeywords.join(', ')}`;
         case 'jobs': return t('jobsListSubtitle');
         case 'documents': return t('myDocumentsSubtitle');
         case 'profile': return t('profileSubtitle');
+        case 'perfect-week': return t('perfectWeekSubtitle');
         default: return '';
     }
   };
@@ -747,6 +822,18 @@ ${extractedKeywords.join(', ')}`;
                         onDeleteDocument={deleteDocument}
                         user={user}
                      />;
+          case 'perfect-week':
+                if (!user) {
+                    setCurrentPage('landing');
+                    return null;
+                }
+                return <PerfectWeekPage
+                          t={t}
+                          jobs={jobs}
+                          weeklyStats={weeklyStats}
+                          onSaveStat={upsertWeeklyStat}
+                          user={user}
+                       />;
           case 'profile':
               const currentUserProfile = user ? userProfiles.find(p => p.uid === user.id) : null;
               if (!user || !currentUserProfile) {
@@ -828,10 +915,13 @@ ${extractedKeywords.join(', ')}`;
                   <button onClick={() => handleNavClick('generator')}><FileTextIcon /> {t('menuGenerator')}</button>
               </li>
               <li className={currentPage === 'jobs' ? 'active' : ''}>
-                  <button onClick={() => handleNavClick('jobs')}><BriefcaseIcon /> {t('menuJobs')}</button>
+                  <button onClick={() => handleNavClick('jobs')} disabled={!isAuthenticated}><BriefcaseIcon /> {t('menuJobs')}</button>
+              </li>
+               <li className={currentPage === 'perfect-week' ? 'active' : ''}>
+                  <button onClick={() => handleNavClick('perfect-week')} disabled={!isAuthenticated}><CalendarCheckIcon /> {t('menuPerfectWeek')}</button>
               </li>
               <li className={currentPage === 'documents' ? 'active' : ''}>
-                  <button onClick={() => handleNavClick('documents')}><UserIcon /> {t('menuDocuments')}</button>
+                  <button onClick={() => handleNavClick('documents')} disabled={!isAuthenticated}><UserIcon /> {t('menuDocuments')}</button>
               </li>
           </ul>
       </nav>
