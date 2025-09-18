@@ -98,7 +98,7 @@ export const App: FC = () => {
           .order('created_at', { ascending: false });
 
       if (jobsError) {
-        console.error('Error fetching jobs:', jobsError);
+        console.error('Error fetching jobs:', jobsError.message || jobsError);
       } else {
         const formattedJobs: Job[] = (jobsData || []).map((job: any) => ({
             id: job.id,
@@ -126,7 +126,7 @@ export const App: FC = () => {
           .order('created_at', { ascending: false });
       
       if (documentsError) {
-        console.error('Error fetching documents:', documentsError);
+        console.error('Error fetching documents:', documentsError.message || documentsError);
       } else {
         const formattedDocuments: DocumentItem[] = (documentsData || []).map((doc: any) => ({
             id: doc.id,
@@ -149,7 +149,7 @@ export const App: FC = () => {
         .eq('user_id', userId);
     
       if (weeklyStatsError) {
-        console.error('Error fetching weekly stats:', weeklyStatsError);
+        console.error('Error fetching weekly stats:', weeklyStatsError.message || weeklyStatsError);
       } else {
         const formattedStats: WeeklyStat[] = (weeklyStatsData || []).map((stat: any) => ({
           id: stat.id,
@@ -172,7 +172,7 @@ export const App: FC = () => {
         .maybeSingle();
       
       if (profileError) {
-        console.error('Error fetching profile:', profileError);
+        console.error('Error fetching profile:', profileError.message || profileError);
       } else if (profileData) {
           // Profile exists, load it
           const existingProfile = {
@@ -203,7 +203,7 @@ export const App: FC = () => {
               .single();
           
           if (insertError) {
-            console.error('Error creating profile:', insertError);
+            console.error('Error creating profile:', insertError.message || insertError);
           } else if (insertedProfile) {
               const createdProfile = {
                   uid: insertedProfile.id,
@@ -266,7 +266,7 @@ export const App: FC = () => {
   const handleConfirmLogout = async () => {
       const { error } = await supabase.auth.signOut();
       if (error) {
-          console.error("Error signing out: ", error);
+          console.error("Error signing out: ", error.message || error);
       } else {
           setIsLogoutConfirmOpen(false);
           setCurrentPage('landing'); // Redirect to landing page on logout
@@ -295,7 +295,7 @@ export const App: FC = () => {
     const { data, error } = await supabase.from('jobs').insert(dataForSupabase).select();
 
     if (error) {
-      console.error('Error adding job:', error);
+      console.error('Error adding job:', error.message || error);
     } else if (data) {
       const newJobFromDb = data[0];
       const newJobForState: Job = {
@@ -342,7 +342,7 @@ export const App: FC = () => {
     const { data, error } = await supabase.from('jobs').update(dataForSupabase).eq('id', jobData.id).select();
 
     if (error) {
-      console.error('Error updating job:', error);
+      console.error('Error updating job:', error.message || error);
     } else if (data) {
       const updatedJobFromDb = data[0];
       const updatedJobForState: Job = {
@@ -368,7 +368,7 @@ export const App: FC = () => {
   const deleteJob = async (jobId: string) => {
     const { error } = await supabase.from('jobs').delete().eq('id', jobId);
     if (error) {
-      console.error('Error deleting job:', error);
+      console.error('Error deleting job:', error.message || error);
     } else {
       setJobs(prev => prev.filter(j => j.id !== jobId));
     }
@@ -394,7 +394,7 @@ export const App: FC = () => {
     const { data, error } = await supabase.from('documents').update(dataForSupabase).eq('id', docData.id).select();
     
     if (error) {
-      console.error('Error updating document:', error);
+      console.error('Error updating document:', error.message || error);
     } else if (data) {
       const updatedDocFromDb = data[0];
       const updatedDocForState: DocumentItem = {
@@ -423,7 +423,7 @@ export const App: FC = () => {
             .remove([docToDelete.storagePath]);
         
         if (storageError) {
-            console.error('Error deleting file from storage:', storageError);
+            console.error('Error deleting file from storage:', storageError.message || storageError);
             // Optionally, stop here and show an error to the user
             // For now, we'll proceed to delete the DB record anyway
         }
@@ -432,7 +432,7 @@ export const App: FC = () => {
     // 3. Delete the database record
     const { error } = await supabase.from('documents').delete().eq('id', docId);
     if (error) {
-        console.error('Error deleting document:', error);
+        console.error('Error deleting document:', error.message || error);
     } else {
         setDocuments(prev => prev.filter(d => d.id !== docId));
     }
@@ -442,8 +442,6 @@ export const App: FC = () => {
         if (!user) return;
 
         const dataForSupabase = {
-          // id is needed for update, but should be omitted for insert on conflict.
-          // Supabase upsert handles this if the primary key is part of the object.
           ...(stat.id && { id: stat.id }),
           user_id: user.id,
           year: stat.year,
@@ -455,13 +453,12 @@ export const App: FC = () => {
         const { data, error } = await supabase
           .from('weekly_stats')
           .upsert(dataForSupabase, { onConflict: 'user_id,year,week_number' })
-          .select()
-          .single();
+          .select();
 
         if (error) {
-          console.error('Error upserting weekly stat:', error);
-        } else if (data) {
-          const upsertedStatFromDb = data;
+          console.error('Error upserting weekly stat:', error.message || error);
+        } else if (data && data.length > 0) {
+          const upsertedStatFromDb = data[0];
           const newStatForState: WeeklyStat = {
             id: upsertedStatFromDb.id,
             user_id: upsertedStatFromDb.user_id,

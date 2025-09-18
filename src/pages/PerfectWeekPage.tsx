@@ -163,18 +163,23 @@ export const PerfectWeekPage: FC<PerfectWeekPageProps> = ({ t, jobs, weeklyStats
                     const [year, weekNumber] = getWeek(correctDate);
                     const yearWeek = `${year}-${String(weekNumber).padStart(2, '0')}`;
 
-                    if (!weeklyDataMap.has(yearWeek)) {
+                    const existing = weeklyDataMap.get(yearWeek);
+                    if (!existing) {
                         weeklyDataMap.set(yearWeek, {
                             user_id: user.id,
                             year,
                             weekNumber,
                             yearWeek,
-                            applicationCount: 0,
+                            applicationCount: 1,
                             interviews: 0,
                             newContacts: 0,
                         });
+                    } else {
+                        weeklyDataMap.set(yearWeek, {
+                            ...existing,
+                            applicationCount: existing.applicationCount + 1,
+                        });
                     }
-                    weeklyDataMap.get(yearWeek)!.applicationCount++;
                 } catch (e) {
                     console.error("Invalid application date:", job.applicationDate);
                 }
@@ -184,19 +189,39 @@ export const PerfectWeekPage: FC<PerfectWeekPageProps> = ({ t, jobs, weeklyStats
         // Step 2: Merge in saved stats from DB
         weeklyStats.forEach(stat => {
             const yearWeek = `${stat.year}-${String(stat.weekNumber).padStart(2, '0')}`;
-            if (!weeklyDataMap.has(yearWeek)) {
+            const existing = weeklyDataMap.get(yearWeek);
+            if (!existing) {
                 weeklyDataMap.set(yearWeek, {
                     ...stat,
                     yearWeek,
-                    applicationCount: 0,
+                    applicationCount: 0, // No jobs found for this week, so count is 0
                 });
             } else {
-                const existing = weeklyDataMap.get(yearWeek)!;
-                existing.id = stat.id;
-                existing.interviews = stat.interviews;
-                existing.newContacts = stat.newContacts;
+                weeklyDataMap.set(yearWeek, {
+                    ...existing,
+                    id: stat.id,
+                    interviews: stat.interviews,
+                    newContacts: stat.newContacts,
+                });
             }
         });
+        
+        // Step 3: Ensure the current week is always present for data entry
+        const today = new Date();
+        const [currentYear, currentWeekNumber] = getWeek(today);
+        const currentYearWeek = `${currentYear}-${String(currentWeekNumber).padStart(2, '0')}`;
+
+        if (!weeklyDataMap.has(currentYearWeek)) {
+            weeklyDataMap.set(currentYearWeek, {
+                user_id: user.id,
+                year: currentYear,
+                weekNumber: currentWeekNumber,
+                yearWeek: currentYearWeek,
+                applicationCount: 0,
+                interviews: 0,
+                newContacts: 0,
+            });
+        }
 
         return Array.from(weeklyDataMap.values()).sort((a, b) => b.yearWeek.localeCompare(a.yearWeek));
     }, [jobs, weeklyStats, user]);
