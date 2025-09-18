@@ -33,7 +33,7 @@ const WeeklyChart: FC<ChartProps> = ({ data, t }) => {
         setVisibleSeries(prev => ({...prev, [series]: !prev[series]}));
     };
 
-    const chartData = data.slice().reverse(); // Show oldest on left
+    const chartData = data; // Show latest on left
 
     const SVG_HEIGHT = 350;
     const margin = { top: 20, right: 20, bottom: 60, left: 40 };
