@@ -16,16 +16,17 @@ type ProfilePageProps = {
   profile: UserProfile;
   onSaveProfile: (updatedProfile: UserProfile) => void;
   setCurrentPage: (page: Page) => void;
+  onTriggerLogoutWarning: () => void;
 };
 
-export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProfile, setCurrentPage }) => {
+export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProfile, setCurrentPage, onTriggerLogoutWarning }) => {
   const [formData, setFormData] = useState(profile);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const isDirty = JSON.stringify(formData) !== JSON.stringify(profile);
   
-  const logoutOptions = Array.from({ length: 11 }, (_, i) => (i * 5) + 10); // 10, 15, ..., 60
+  const logoutOptions = Array.from({ length: 12 }, (_, i) => (i + 1) * 5); // 5, 10, ..., 60
 
   useEffect(() => {
     // Update form data if the profile prop changes (e.g., on initial load)
@@ -78,7 +79,8 @@ export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProf
           gender: formData.gender,
           auto_logout_minutes: formData.autoLogoutMinutes,
         })
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .select();
 
       if (profileError) throw profileError;
 
@@ -88,8 +90,8 @@ export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProf
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000); // Hide success message after 3s
 
-    } catch (error) {
-      console.error("Error updating profile:", error);
+    } catch (error: any) {
+      console.error("Error updating profile:", error.message || error);
       // Here you would set an error state to show to the user
     } finally {
       setIsSaving(false);
@@ -188,9 +190,15 @@ export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProf
             </div>
           </div>
           <div className="modal-actions">
-            <Button type="button" variant="secondary" onClick={handleCancelOrGoBack}>
-                {isDirty ? t('cancelButton') : t('goBackButton')}
-            </Button>
+            <div>
+                <Button type="button" variant="secondary" onClick={handleCancelOrGoBack}>
+                    {isDirty ? t('cancelButton') : t('goBackButton')}
+                </Button>
+                {/* This is a temporary test button */}
+                <Button type="button" variant="secondary" onClick={onTriggerLogoutWarning} style={{ marginLeft: '1rem' }}>
+                    Test Auto-Logout
+                </Button>
+            </div>
             <div className="modal-actions-right-group">
                 {saveSuccess && <span className="profile-save-feedback">{t('profileUpdatedSuccess')}</span>}
                 <Button type="submit" disabled={isSaving || !isDirty}>

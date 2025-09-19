@@ -276,39 +276,38 @@ export const App: FC = () => {
         }
     }, []);
     
-    const resetInactivityTimer = useCallback(() => {
-        if (inactivityTimerRef.current) {
-            clearTimeout(inactivityTimerRef.current);
-        }
-        if (isLogoutWarningOpen) {
-            return;
-        }
-        
-        if (!isAuthenticated || !autoLogoutMinutes || autoLogoutMinutes < 10) {
-            return; // Don't start timer if not logged in or feature is disabled (less than 10 mins)
-        }
-
-        inactivityTimerRef.current = window.setTimeout(() => {
-            setIsLogoutWarningOpen(true);
-        }, autoLogoutMinutes * 60 * 1000);
-
-    }, [isAuthenticated, autoLogoutMinutes, isLogoutWarningOpen]);
-
     useEffect(() => {
+        const resetInactivityTimer = () => {
+            if (inactivityTimerRef.current) {
+                clearTimeout(inactivityTimerRef.current);
+            }
+            if (isLogoutWarningOpen) {
+                return;
+            }
+            
+            if (!isAuthenticated || !autoLogoutMinutes || autoLogoutMinutes < 5) {
+                return;
+            }
+    
+            inactivityTimerRef.current = window.setTimeout(() => {
+                setIsLogoutWarningOpen(true);
+            }, autoLogoutMinutes * 60 * 1000);
+        };
+
         const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'click', 'scroll'];
         events.forEach(event => window.addEventListener(event, resetInactivityTimer));
-
-        resetInactivityTimer(); // Start the timer on load/login
+        resetInactivityTimer(); // Start/Restart the timer
 
         return () => {
             events.forEach(event => window.removeEventListener(event, resetInactivityTimer));
             if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
         };
-    }, [resetInactivityTimer]);
+    }, [isAuthenticated, autoLogoutMinutes, isLogoutWarningOpen]);
 
     const handleStayLoggedIn = () => {
         setIsLogoutWarningOpen(false);
-        resetInactivityTimer();
+        // The useEffect will re-run because isLogoutWarningOpen is a dependency,
+        // which effectively resets the timer.
     };
 
   const toggleTheme = () => {
@@ -906,6 +905,7 @@ ${extractedKeywords.join(', ')}`;
                               }
                           }}
                           setCurrentPage={setCurrentPage}
+                          onTriggerLogoutWarning={() => setIsLogoutWarningOpen(true)}
                       />;
           default:
               return <LandingPage t={t} setCurrentPage={setCurrentPage} />;
