@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import { GoogleGenAI, Type } from '@google/genai';
-import React, { useState, useRef, useEffect, FC } from 'react';
+import React, { useState, useRef, useEffect, FC, useCallback } from 'react';
 import { Packer, Document, Paragraph, TextRun } from 'docx';
 import saveAs from 'file-saver';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -18,6 +18,7 @@ import { Button, Modal, DropdownMenu, ConfirmationModal } from './components/ui'
 import { AuthModal } from './components/AuthModal';
 import { SelectCvModal } from './components/SelectCvModal';
 import { SelectJobModal } from './components/SelectJobModal';
+import { LogoutWarningModal } from './components/LogoutWarningModal';
 import { HomeIcon, SunIcon, MoonIcon, SparkIcon, FileTextIcon, BriefcaseIcon, UserIcon, MenuIcon, LogInIcon, LogOutIcon, UserCircleIcon, CalendarCheckIcon } from './components/icons';
 import { LandingPage } from './pages/LandingPage';
 import { GeneratorPage } from './pages/GeneratorPage';
@@ -43,6 +44,8 @@ export const App: FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const isAuthenticated = !!user;
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [isLogoutWarningOpen, setIsLogoutWarningOpen] = useState(false);
+  const inactivityTimerRef = useRef<number | null>(null);
   
   // Generator State
   const [cvContent, setCvContent] = useState('');
@@ -66,8 +69,14 @@ export const App: FC = () => {
   const [isSelectCvModalOpen, setIsSelectCvModalOpen] = useState(false);
   const [isSelectJobModalOpen, setIsSelectJobModalOpen] = useState(false);
 
-  const t = (key: keyof typeof translations['EN']) => {
-    return translations[uiLanguage][key] || translations['EN'][key];
+  const t = (key: keyof typeof translations['EN'], vars?: Record<string, string | number>) => {
+    let translation = translations[uiLanguage]?.[key] || translations['EN'][key];
+    if (vars) {
+      Object.keys(vars).forEach(varKey => {
+        translation = translation.replace(`{${varKey}}`, String(vars[varKey]));
+      });
+    }
+    return translation;
   };
   
   useEffect(() => {
@@ -175,12 +184,13 @@ export const App: FC = () => {
         console.error('Error fetching profile:', profileError.message || profileError);
       } else if (profileData) {
           // Profile exists, load it
-          const existingProfile = {
+          const existingProfile: UserProfile = {
               uid: profileData.id,
               firstName: profileData.first_name,
               lastName: profileData.last_name,
               defaultLanguage: profileData.default_language,
               gender: profileData.gender,
+              autoLogoutMinutes: profileData.auto_logout_minutes ?? 30,
           };
           setUserProfiles([existingProfile]);
           if(existingProfile.defaultLanguage) {
@@ -194,6 +204,7 @@ export const App: FC = () => {
             last_name: user.user_metadata.last_name || '',
             default_language: 'DE' as LanguageCode,
             gender: 'unspecified' as Gender,
+            auto_logout_minutes: 30,
           };
 
           const { data: insertedProfile, error: insertError } = await supabase
@@ -205,12 +216,13 @@ export const App: FC = () => {
           if (insertError) {
             console.error('Error creating profile:', insertError.message || insertError);
           } else if (insertedProfile) {
-              const createdProfile = {
+              const createdProfile: UserProfile = {
                   uid: insertedProfile.id,
                   firstName: insertedProfile.first_name,
                   lastName: insertedProfile.last_name,
                   defaultLanguage: insertedProfile.default_language,
                   gender: insertedProfile.gender,
+                  autoLogoutMinutes: insertedProfile.auto_logout_minutes,
               };
               setUserProfiles([createdProfile]);
               if (createdProfile.defaultLanguage) {
@@ -228,32 +240,76 @@ export const App: FC = () => {
   };
 
   useEffect(() => {
-    const getSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-        if (currentUser) {
-            await fetchUserData(currentUser);
-        }
-        setIsAuthLoading(false);
-    };
-
-    getSession();
-
+    // The onAuthStateChange listener handles the initial session check automatically.
+    // It fires once on load, and then again whenever the auth state changes.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
         const currentUser = session?.user ?? null;
         setUser(currentUser);
 
         if (currentUser) {
-            setIsAuthModalOpen(false); // Close auth modal on successful login
+            setIsAuthModalOpen(false); // Close modal on login
             await fetchUserData(currentUser);
         } else {
             clearUserData();
         }
+        
+        // This ensures the loading screen is removed after the initial check is complete.
+        setIsAuthLoading(false);
     });
 
-    return () => subscription?.unsubscribe();
+    return () => {
+        subscription?.unsubscribe();
+    };
   }, []);
+  
+  // --- Auto-Logout Logic ---
+    const currentUserProfile = user ? userProfiles.find(p => p.uid === user.id) : null;
+    const autoLogoutMinutes = currentUserProfile?.autoLogoutMinutes;
+
+    const handleImmediateLogout = useCallback(async () => {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+            console.error("Error signing out: ", error.message || error);
+        } else {
+            setIsLogoutWarningOpen(false);
+            setCurrentPage('landing');
+        }
+    }, []);
+    
+    const resetInactivityTimer = useCallback(() => {
+        if (inactivityTimerRef.current) {
+            clearTimeout(inactivityTimerRef.current);
+        }
+        if (isLogoutWarningOpen) {
+            return;
+        }
+        
+        if (!isAuthenticated || !autoLogoutMinutes || autoLogoutMinutes < 10) {
+            return; // Don't start timer if not logged in or feature is disabled (less than 10 mins)
+        }
+
+        inactivityTimerRef.current = window.setTimeout(() => {
+            setIsLogoutWarningOpen(true);
+        }, autoLogoutMinutes * 60 * 1000);
+
+    }, [isAuthenticated, autoLogoutMinutes, isLogoutWarningOpen]);
+
+    useEffect(() => {
+        const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'click', 'scroll'];
+        events.forEach(event => window.addEventListener(event, resetInactivityTimer));
+
+        resetInactivityTimer(); // Start the timer on load/login
+
+        return () => {
+            events.forEach(event => window.removeEventListener(event, resetInactivityTimer));
+            if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+        };
+    }, [resetInactivityTimer]);
+
+    const handleStayLoggedIn = () => {
+        setIsLogoutWarningOpen(false);
+        resetInactivityTimer();
+    };
 
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
@@ -832,7 +888,6 @@ ${extractedKeywords.join(', ')}`;
                           user={user}
                        />;
           case 'profile':
-              const currentUserProfile = user ? userProfiles.find(p => p.uid === user.id) : null;
               if (!user || !currentUserProfile) {
                   setCurrentPage('landing');
                   return null; // Redirect if not logged in or profile not found
@@ -870,6 +925,12 @@ ${extractedKeywords.join(', ')}`;
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+        t={t}
+      />
+      <LogoutWarningModal
+        isOpen={isLogoutWarningOpen}
+        onLogout={handleImmediateLogout}
+        onStay={handleStayLoggedIn}
         t={t}
       />
       <ConfirmationModal

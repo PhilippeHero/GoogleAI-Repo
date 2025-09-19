@@ -48,6 +48,7 @@ export type UserProfile = {
   lastName: string;
   defaultLanguage: LanguageCode;
   gender: Gender;
+  autoLogoutMinutes: number;
 };
 
 export type WeeklyStat = {

@@ -24,6 +24,8 @@ export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProf
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const isDirty = JSON.stringify(formData) !== JSON.stringify(profile);
+  
+  const logoutOptions = Array.from({ length: 11 }, (_, i) => (i * 5) + 10); // 10, 15, ..., 60
 
   useEffect(() => {
     // Update form data if the profile prop changes (e.g., on initial load)
@@ -32,7 +34,7 @@ export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProf
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: name === 'autoLogoutMinutes' ? Number(value) : value }));
     if (saveSuccess) setSaveSuccess(false);
   };
 
@@ -74,6 +76,7 @@ export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProf
           last_name: formData.lastName,
           default_language: formData.defaultLanguage,
           gender: formData.gender,
+          auto_logout_minutes: formData.autoLogoutMinutes,
         })
         .eq('id', user.id);
 
@@ -165,6 +168,22 @@ export const ProfilePage: FC<ProfilePageProps> = ({ t, user, profile, onSaveProf
                     <option value="man">{t('genderMan')}</option>
                     <option value="woman">{t('genderWoman')}</option>
                     <option value="other">{t('genderOther')}</option>
+                </select>
+            </div>
+            <div className="form-group-stack">
+                <label htmlFor="autoLogoutMinutes">{t('profileAutoLogout')}</label>
+                <select
+                    id="autoLogoutMinutes"
+                    name="autoLogoutMinutes"
+                    value={formData.autoLogoutMinutes}
+                    onChange={handleChange}
+                    className="input"
+                >
+                    {logoutOptions.map(minutes => (
+                        <option key={minutes} value={minutes}>
+                            {minutes} minutes
+                        </option>
+                    ))}
                 </select>
             </div>
           </div>

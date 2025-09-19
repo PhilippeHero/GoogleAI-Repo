@@ -1123,6 +1123,38 @@ textarea[readonly]:focus {
     font-size: 0.9rem;
 }
 
+/* Logout Warning Modal styles */
+.logout-warning-modal {
+    max-width: 450px;
+    text-align: center;
+    align-items: center;
+    padding: 2rem;
+}
+
+.logout-warning-modal h2 {
+    margin-top: 0;
+    color: hsl(var(--card-foreground));
+    font-size: 1.25rem;
+}
+
+.logout-warning-body {
+    margin: 1rem 0;
+    color: hsl(var(--muted-foreground));
+    font-size: 0.9rem;
+}
+
+.logout-countdown {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: hsl(var(--primary));
+    margin: 0.5rem 0 1.5rem;
+}
+
+.logout-warning-modal .modal-actions {
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
 /* Selection Modal styles */
 .modal-content.selection-modal {
     max-width: 500px;
